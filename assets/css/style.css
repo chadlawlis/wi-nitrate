@@ -1,0 +1,52 @@
+html, body, #map {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  color: #333;
+  font: 14px -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+.mapboxgl-popup-content {
+  background: #333;
+  color: #efefef;
+  font: 14px -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, Helvetica, sans-serif;
+  padding: 0;
+  text-align: center;
+}
+
+.mapboxgl-popup-content p {
+  margin: 5px 0 0;
+}
+
+.mapboxgl-popup-content .popup-menu p:first-child {
+  margin: 0;
+}
+
+.mapboxgl-popup-content .popup-menu {
+  padding: 10px;
+}
+
+.mapboxgl-popup-content hr {
+  margin: 0;
+}
+
+.mapboxgl-popup-anchor-top .mapboxgl-popup-tip,
+.mapboxgl-popup-anchor-top-left .mapboxgl-popup-tip,
+.mapboxgl-popup-anchor-top-right .mapboxgl-popup-tip {
+  border-bottom-color: #333;
+}
+.mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip,
+.mapboxgl-popup-anchor-bottom-left .mapboxgl-popup-tip,
+.mapboxgl-popup-anchor-bottom-right .mapboxgl-popup-tip {
+    border-top-color: #333;
+}
+.mapboxgl-popup-anchor-left .mapboxgl-popup-tip {
+    border-right-color: #333;
+}
+.mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
+    border-left-color: #333;
+}
