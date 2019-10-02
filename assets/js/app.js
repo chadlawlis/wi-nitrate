@@ -31,16 +31,25 @@ import { Spinner } from './spin.js';
   spinner.spin(target);
 
   var mapLayers;
-  var firstLandUseId;
+  var firstLabelLayer;
 
   var tracts;
   var tractsVis = 'visible';
   var tractsBreaks = [];
   var tractsColors = ['#eff3ff', '#bdd7e7', '#6baed6', '#3182bd', '#08519c'];
+
+  var tractCentroids;
+
   var wells;
   var wellsVis = 'visible';
   var wellsBreaks = [];
   var wellsColors = ['#fef0d9', '#fdcc8a', '#fc8d59', '#e34a33', '#b30000'];
+
+  var nitGrid;
+  var nitGridVis = 'visible';
+  var nitGridBreaks = [];
+  var weight = 2;
+  var cellSize = 5;
 
   mapboxgl.accessToken = 'pk.eyJ1IjoiY2hhZGxhd2xpcyIsImEiOiJlaERjUmxzIn0.P6X84vnEfttg0TZ7RihW1g';
 
@@ -72,29 +81,20 @@ import { Spinner } from './spin.js';
     closeOnClick: false
   });
 
-  // Animate spinner when map source begins loading / changing
-  // https://docs.mapbox.com/mapbox-gl-js/api/#map.event:sourcedataloading
-  // https://docs.mapbox.com/mapbox-gl-js/api/#mapdataevent
-  // map.on('sourcedataloading', function (event) {
-  //   // if (event.source.type === 'geojson') {
-  //   //   console.log('sourcedataloading:', event.source);
-  //   // }
-  //   spinner.spin(target);
-  // });
-
-  // Stop spinner when map source loads / changes
-  // https://docs.mapbox.com/mapbox-gl-js/api/#map.event:sourcedata
-  // map.on('sourcedata', function (event) {
-  //   // if (event.source.type === 'geojson') {
-  //   //   console.log('sourcedata:', event.source);
-  //   // }
-  //   spinner.stop();
-  // });
-
   map.on('load', function () {
     // Set minZoom as floor of (rounded down to nearest integer from) fitBounds zoom
     var minZoom = map.getZoom();
     map.setMinZoom(Math.floor(minZoom));
+
+    mapLayers = map.getStyle().layers;
+
+    // Find the index of the settlement-label layer in the loaded map style, to place added layers below
+    for (let i = 0; i < mapLayers.length; i++) {
+      if (mapLayers[i].id === 'settlement-label') {
+        firstLabelLayer = mapLayers[i].id;
+        break;
+      }
+    }
 
     // Add zoom and rotation controls
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }));
@@ -145,14 +145,25 @@ import { Spinner } from './spin.js';
       tracts = data[0];
       wells = data[1];
 
+      // Create deep copy tractCentroids of tracts for use in interpolation aggregation and regression
+      // (changes to copy tractCentroids properties should not affect original tract properties)
+      // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/assign
+      tractCentroids = JSON.parse(JSON.stringify(tracts));
+
+      // Calculate centroids and set as feature geometry
+      tractCentroids.features.forEach(function (d) {
+        var centroid = turf.centroid(d.geometry);
+        d.geometry = centroid.geometry;
+      });
+
       // Round nitrate levels to two decimal places
       wells.features.forEach(function (d) {
         d.properties.nitconc = parseFloat(d.properties.nitconc.toFixed(2));
       });
 
       // Calculate breakpoints
-      tractsBreaks = calcBreaks(tracts, 'canrate');
-      wellsBreaks = calcBreaks(wells, 'nitconc');
+      tractsBreaks = calcBreaks(tracts, 'tracts', 'canrate');
+      wellsBreaks = calcBreaks(wells, 'wells', 'nitconc');
 
       // Add map sources
       addSource('tracts', tracts);
@@ -162,17 +173,40 @@ import { Spinner } from './spin.js';
       mapTracts('tracts', 'canrate', tractsBreaks, tractsColors);
       mapWells('wells', 'nitconc', wellsBreaks, wellsColors);
 
-      addPopups('tracts', 'canrate', 'Cancer Rate');
-      addPopups('wells', 'nitconc', 'Nitrate Concentration');
+      addPopups('tracts', 'geoid', 'Tract #', 'canrate', 'Cancer Rate');
+      addPopups('wells', 'id', 'Well #', 'nitconc', 'Nitrate Concentration');
 
+      // TODO
       // Create legend
+
+      // // Generate interpolated layer on well nitrate concentrations
+      // interpolate(wells, weight, cellSize);
+      //
+      // // For testing / beta demo
+      // nitGridBreaks = calcBreaks(nitGrid, 'nitGrid', 'nitconc');
+      // addSource('nitGrid', nitGrid);
+      // mapNitGrid('nitGrid', 'nitconc', nitGridBreaks, tractsColors);
+      //
+      // joinNitGrid(tractCentroids, nitGrid, 'nitconc', 'nitconc');
+      //
+      // // For testing / beta demo
+      // addSource('tractCentroids', tractCentroids);
+      // mapTractCentroids('tractCentroids', 'nitconc');
+
+      // TODO
+      // Calculate regression (residuals + standard deviation of residuals)
+      // -> add predicted canrate + standard deviation of residuals to each tract polygon
+      // -> (include if statement to delete these attributes if they exist, i.e., if regression has already been run)
+      // Regression calcBreaks (add global variable up top)
+      // Regression addSource
+      // Regression map (add global variable for colors up top)
 
       // Stop spinner once all page load functions have been called
       spinner.stop();
     });
   }
 
-  function calcBreaks (input, attr) {
+  function calcBreaks (input, layerName, attr) {
     var values = [];
     // Build array of all values from input
     input.features.forEach(function (d) {
@@ -188,17 +222,23 @@ import { Spinner } from './spin.js';
     // Use native JS map() function to set each item of breaks array to minimum value of its cluster
     // No longer a nested array; results in minimum value of each cluster as each item of array
     var breaks = clusters.map(function (d) {
-      return d3.min(d);
+      // Round to two decimal places
+      return parseFloat(d3.min(d).toFixed(2));
     });
 
     // Use native JS shift() method to remove first value from breaks array
     // to create actual breakpoints for Mapbox (minimum value of each break is included in classification)
     breaks.shift();
 
+    console.log(layerName + 'Breaks', breaks);
     return breaks;
   }
 
   function addSource (sourceName, sourceData) {
+    if (map.getSource(sourceName)) {
+      map.removeSource(sourceName);
+    }
+
     map.addSource(sourceName, {
       type: 'geojson',
       data: sourceData
@@ -206,16 +246,6 @@ import { Spinner } from './spin.js';
   }
 
   function mapTracts (layerName, attr, breaks, colors) {
-    mapLayers = map.getStyle().layers;
-
-    // Find the index of the settlement-label layer in the loaded map style, to place new layer below
-    for (let i = 0; i < mapLayers.length; i++) {
-      if (mapLayers[i].id === 'settlement-label') {
-        firstLandUseId = mapLayers[i].id;
-        break;
-      }
-    }
-
     map.addLayer({
       id: layerName,
       type: 'fill',
@@ -235,7 +265,7 @@ import { Spinner } from './spin.js';
         ],
         'fill-opacity': 1
       }
-    }, firstLandUseId);
+    }, firstLabelLayer);
 
     map.addLayer({
       id: layerName + '-line',
@@ -257,20 +287,10 @@ import { Spinner } from './spin.js';
           // in between, line-width will be linearly interpolated between 0.25 and 1.5 pixels
         ]
       }
-    }, firstLandUseId);
+    }, firstLabelLayer);
   }
 
   function mapWells (layerName, attr, breaks, colors) {
-    mapLayers = map.getStyle().layers;
-
-    // Find the index of the settlement-label layer in the loaded map style, to place new layer below
-    for (let i = 0; i < mapLayers.length; i++) {
-      if (mapLayers[i].id === 'settlement-label') {
-        firstLandUseId = mapLayers[i].id;
-        break;
-      }
-    }
-
     map.addLayer({
       id: layerName,
       type: 'circle',
@@ -310,28 +330,146 @@ import { Spinner } from './spin.js';
         ],
         'circle-stroke-color': '#333'
       }
-    }, firstLandUseId);
+    }, firstLabelLayer);
   }
 
-  function addPopups (layerName, attr, attrAlias) {
-    // Change cursor to pointer on mouseover
+  function addPopups (layerName, titleAttr, titleAttrAlias, attr, attrAlias) {
     map.on('mousemove', layerName, function (e) {
+      // Change cursor to pointer on mouseover
       map.getCanvas().style.cursor = 'pointer';
 
       var popupContent;
       var props = e.features[0].properties;
 
-      popupContent = '<div class="popup-menu"><p><b>' + attrAlias + '</b></p><p>' + props[attr] + '</p>';
+      popupContent = '<div class="popup-menu"><p><b>' + titleAttrAlias + props[titleAttr] + '</b></p></div><hr>' +
+      '<div class="popup-menu"><p><b>' + attrAlias + '</b></p><p>' + props[attr] + '</p></div>';
 
       popup.setLngLat(e.lngLat)
         .setHTML(popupContent)
         .addTo(map);
     });
 
-    // Change cursor back to default ("grab") on mouseleave
     map.on('mouseleave', layerName, function () {
+      // Change cursor back to default ("grab") on mouseleave
       map.getCanvas().style.cursor = '';
       popup.remove();
+    });
+  }
+
+  function interpolate (input, weight, cellSize) {
+    var options = {
+      gridType: 'square', // 1392 overlapping tractCentroids w/ square gridType, 1383 w/ hex
+      property: 'nitconc',
+      weight: weight,
+      units: 'kilometers'
+    };
+
+    nitGrid = turf.interpolate(input, cellSize, options);
+
+    nitGrid.features.forEach(function (d) {
+      d.properties.nitconc = parseFloat(d.properties.nitconc.toFixed(2));
+    });
+  }
+
+  function mapNitGrid (layerName, attr, breaks, colors) {
+    if (map.getLayer(layerName)) {
+      map.removeLayer(layerName);
+    }
+
+    map.addLayer({
+      id: layerName,
+      type: 'fill',
+      source: layerName,
+      layout: {
+        visibility: nitGridVis
+      },
+      paint: {
+        'fill-color': [
+          'step',
+          ['get', attr],
+          colors[0],
+          breaks[0], colors[1],
+          breaks[1], colors[2],
+          breaks[2], colors[3],
+          breaks[3], colors[4]
+        ],
+        'fill-opacity': 1
+      }
+    }, firstLabelLayer);
+
+    map.addLayer({
+      id: layerName + '-line',
+      type: 'line',
+      source: layerName,
+      layout: {
+        visibility: nitGridVis
+      },
+      paint: {
+        'line-color': '#fff',
+        'line-width': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          // when zoom <= 4, line-width: 0.5
+          4, 0.25,
+          // when zoom >= 9, line-width: 1.2
+          9, 1.2
+          // in between, line-width will be linearly interpolated between 0.5 and 1.2 pixels
+        ]
+      }
+    }, firstLabelLayer);
+  }
+
+  function joinNitGrid (points, polygons, inputAttr, outputAttr) {
+    // Remove nitconc property if previously joined to tract centroids
+    if (tractCentroids.features[0].properties.nitconc) {
+      tractCentroids.features.forEach(function (d) {
+        delete d.properties.nitconc;
+      });
+    }
+
+    // Spatial join points (tract centroids) to polygons (interpolated hexbins) to assign nitconc to tracts
+    // https://turfjs.org/docs/#tag
+    tractCentroids = turf.tag(points, polygons, inputAttr, outputAttr);
+
+    // Remove nitconc property if previously joined to tract polygons
+    if (tracts.features[0].properties.nitconc) {
+      tracts.features.forEach(function (d) {
+        delete d.properties.nitconc;
+      });
+    }
+
+    // Assign nitconc property to tract polygons through join on geoid with tract centroids
+    for (let i = 0; i < tracts.features.length; i++) {
+      var nitconc = tractCentroids.features[i].properties[outputAttr];
+      var cKey = tractCentroids.features[i].properties.geoid;
+      var tKey = tracts.features[i].properties.geoid;
+
+      if (cKey === tKey) {
+        tracts.features[i].properties[outputAttr] = nitconc;
+      }
+    }
+
+    var count = 0;
+    tractCentroids.features.forEach(function (d) {
+      if (d.properties.nitconc) {
+        count += 1;
+      }
+    });
+    console.log('Tracts intersecting nitGrid (of 1401):', count);
+  }
+
+  function mapTractCentroids (layerName, attr) {
+    map.addLayer({
+      id: layerName,
+      type: 'circle',
+      source: layerName,
+      paint: {
+        'circle-radius': 3,
+        'circle-color': '#333',
+        'circle-stroke-width': 0.5,
+        'circle-stroke-color': '#fff'
+      }
     });
   }
 })();
