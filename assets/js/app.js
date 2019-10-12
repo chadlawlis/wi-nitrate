@@ -45,11 +45,26 @@ import { Spinner } from './spin.js';
   var wellsBreaks = [];
   var wellsColors = ['#fef0d9', '#fdcc8a', '#fc8d59', '#e34a33', '#b30000'];
 
-  var nitGrid;
   var nitGridVis = 'visible';
   var nitGridBreaks = [];
+
+  var canPointGrid;
+
+  var canGridVis = 'visible';
+  var canGridBreaks = [];
+
+  var grid;
+  var gridVis = 'visible';
+  var gridBreaks = [];
+  // var gridColors = ['#0571b0', '#92c5de', '#f7f7f7', '#f4a582', '#ca0020'];
+  // var gridColors = ['#2c7bb6', '#abd9e9', '#ffffbf', '#fdae61', '#d7191c'];
+  var gridColors = ['#7b3294', '#c2a5cf', '#f7f7f7', '#a6dba0', '#008837'];
+
   var weight = 2;
-  var cellSize = 5;
+  var cellSize = 6; // !!! cellSize must be >= 6 for each grid hexbin to intersect a canPointGrid point !!!
+
+  var regressionEquation;
+  var rSquared;
 
   mapboxgl.accessToken = 'pk.eyJ1IjoiY2hhZGxhd2xpcyIsImEiOiJlaERjUmxzIn0.P6X84vnEfttg0TZ7RihW1g';
 
@@ -132,6 +147,88 @@ import { Spinner } from './spin.js';
       map.fitBounds(zoomToBounds, zoomToOptions);
     });
 
+    // Create map style switcher structure
+    var layersToggle = document.getElementById('layers-toggle'); // Create "layers-toggle" parent div
+    layersToggle.className = 'layers-toggle map-overlay';
+
+    var layersImage = document.createElement('div'); // Create "layers-image" div with Leaflet layers icon; default display
+    layersImage.id = 'layers-image';
+    layersImage.className = 'layers-image';
+    var layersImageAnchor = document.createElement('a');
+    var layersImageIcon = document.createElement('img');
+    layersImageIcon.src = 'assets/img/layers.png';
+    layersImageIcon.className = 'layers-icon';
+    layersImageIcon.alt = 'layers icon';
+    layersImageAnchor.appendChild(layersImageIcon);
+    layersImage.appendChild(layersImageAnchor);
+    layersToggle.appendChild(layersImage);
+
+    var layersMenu = document.createElement('div'); // Create "layers-menu" div; displays on mouseover
+    layersMenu.id = 'layers-menu';
+    layersMenu.className = 'layers-menu';
+
+    var overlayLayersMenu = document.createElement('div');
+    overlayLayersMenu.id = 'overlay-layers-menu';
+    overlayLayersMenu.className = 'layers-form-menu';
+
+    var tractsOverlayToggle = document.createElement('div');
+    tractsOverlayToggle.className = 'overlay-layer-checkbox toggle';
+    var tractsOverlayToggleInput = document.createElement('input');
+    tractsOverlayToggleInput.type = 'checkbox';
+    tractsOverlayToggleInput.id = 'tracts-checkbox-input';
+    tractsOverlayToggleInput.checked = true;
+    var tractsOverlayToggleLabel = document.createElement('label');
+    tractsOverlayToggleLabel.textContent = 'Tracts';
+    tractsOverlayToggle.appendChild(tractsOverlayToggleInput);
+    tractsOverlayToggle.appendChild(tractsOverlayToggleLabel);
+    overlayLayersMenu.appendChild(tractsOverlayToggle);
+
+    tractsOverlayToggleInput.addEventListener('change', function (e) {
+      map.setLayoutProperty('tracts', 'visibility', e.target.checked ? 'visible' : 'none');
+      tractsVis = map.getLayoutProperty('tracts', 'visibility');
+    });
+
+    var wellsOverlayToggle = document.createElement('div');
+    wellsOverlayToggle.className = 'overlay-layer-checkbox toggle';
+    var wellsOverlayToggleInput = document.createElement('input');
+    wellsOverlayToggleInput.type = 'checkbox';
+    wellsOverlayToggleInput.id = 'wells-checkbox-input';
+    wellsOverlayToggleInput.checked = true;
+    var wellsOverlayToggleLabel = document.createElement('label');
+    wellsOverlayToggleLabel.textContent = 'Wells';
+    wellsOverlayToggle.appendChild(wellsOverlayToggleInput);
+    wellsOverlayToggle.appendChild(wellsOverlayToggleLabel);
+    overlayLayersMenu.appendChild(wellsOverlayToggle);
+
+    wellsOverlayToggleInput.addEventListener('change', function (e) {
+      map.setLayoutProperty('wells', 'visibility', e.target.checked ? 'visible' : 'none');
+      wellsVis = map.getLayoutProperty('wells', 'visibility');
+    });
+
+    layersMenu.appendChild(overlayLayersMenu);
+    layersToggle.appendChild(layersMenu);
+
+    layersToggle.addEventListener('mouseover', function (e) {
+      layersMenu.style.display = 'block'; // Display layer switcher menu on hover ..
+      layersImage.style.display = 'none'; // ... replacing layers icon
+    });
+
+    layersToggle.addEventListener('mouseout', function (e) {
+      layersImage.style.display = 'block'; // Return to default display of layers icon on mouseout ...
+      layersMenu.style.display = 'none'; // ... hiding layer switcher menu
+    });
+
+    var form = document.getElementById('form');
+    form.className = 'map-overlay bottom-left';
+
+    var title = document.createElement('div');
+    title.id = 'title';
+    title.className = 'form form-menu title';
+    title.innerHTML = '<h1>Nitrate & Cancer in WI</h1>' +
+    '<p>Explore the relationship between well water nitrate concentrations and cancer rates in Wisconsin' +
+    '&nbsp;<a href="#about"><i class="fas fa-question-circle small" title="About"></i></a></p>'; // "&nbsp;" = non-breaking space
+    form.appendChild(title);
+
     loadData();
   });
 
@@ -161,13 +258,13 @@ import { Spinner } from './spin.js';
         d.properties.nitconc = parseFloat(d.properties.nitconc.toFixed(2));
       });
 
-      // Calculate breakpoints
-      tractsBreaks = calcBreaks(tracts, 'tracts', 'canrate');
-      wellsBreaks = calcBreaks(wells, 'wells', 'nitconc');
-
       // Add map sources
       addSource('tracts', tracts);
       addSource('wells', wells);
+
+      // Calculate breakpoints
+      tractsBreaks = calcBreaks(tracts, 'tracts', 'canrate');
+      wellsBreaks = calcBreaks(wells, 'wells', 'nitconc');
 
       // Add map layers
       mapTracts('tracts', 'canrate', tractsBreaks, tractsColors);
@@ -178,28 +275,49 @@ import { Spinner } from './spin.js';
 
       // TODO
       // Create legend
+      // REMEMBER TO CONVERT DECIMAL TO PERCENTAGE INTEGER FOR TRACT/CANCER INTERPOLATION LEGEND LABELS
 
-      // // Generate interpolated layer on well nitrate concentrations
-      // interpolate(wells, weight, cellSize);
+      // // Generate interpolated hexbin grid on well nitrate concentrations
+      // grid = interpolate(wells, 'hex', 'nitconc', weight, cellSize);
       //
-      // // For testing / beta demo
-      // nitGridBreaks = calcBreaks(nitGrid, 'nitGrid', 'nitconc');
-      // addSource('nitGrid', nitGrid);
-      // mapNitGrid('nitGrid', 'nitconc', nitGridBreaks, tractsColors);
+      // // Generate interpolated point grid on tract centroid cancer rates
+      // canPointGrid = interpolate(tractCentroids, 'point', 'canrate', weight, cellSize);
       //
-      // joinNitGrid(tractCentroids, nitGrid, 'nitconc', 'nitconc');
+      // // Merge "canrate" property from canPointGrid into grid as "values" property (array)
+      // joinGrid();
       //
-      // // For testing / beta demo
+      // // Calculate "canrate_predicted" via linear regression
+      // // along with residuals and standard deviation of residuals breaks for symbolizing
+      // calcRegression();
+      //
+      // addSource('grid', grid);
+
+      // // Calculate interpolated nitrate concentrations hexbin grid breakpoints
+      // nitGridBreaks = calcBreaks(grid, 'nitGrid', 'nitconc');
+      //
+      // // Map interpolated nitrate concentrations hexbin grid
+      // mapGrid('nitGrid', 'grid', 'nitconc', nitGridVis, nitGridBreaks, wellsColors);
+
+      // // Calculate interpolated cancer rate breakpoints for hexbins
+      // canGridBreaks = calcBreaks(grid, 'canGrid', 'canrate');
+      //
+      // // Map interpolated cancer rates hexbin grid
+      // mapGrid('canGrid', 'grid', 'canrate', canGridVis, canGridBreaks, tractsColors);
+
+      // // Map cancer rate residuals (observed - predicted) to standard deviation of residuals breakpoints
+      // mapGrid('residuals', 'grid', 'residual', gridVis, gridBreaks, gridColors);
+      //
+      // // For testing (?)
+      // // TODO: BUILD LOGIC INTO addPopups FUNCTION
+      // addGridPopups();
+
+      // For testing / beta demo
       // addSource('tractCentroids', tractCentroids);
-      // mapTractCentroids('tractCentroids', 'nitconc');
+      // mapPoints('tractCentroids');
 
-      // TODO
-      // Calculate regression (residuals + standard deviation of residuals)
-      // -> add predicted canrate + standard deviation of residuals to each tract polygon
-      // -> (include if statement to delete these attributes if they exist, i.e., if regression has already been run)
-      // Regression calcBreaks (add global variable up top)
-      // Regression addSource
-      // Regression map (add global variable for colors up top)
+      // For testing
+      // addSource('canPointGrid', canPointGrid);
+      // mapPoints('canPointGrid');
 
       // Stop spinner once all page load functions have been called
       spinner.stop();
@@ -246,6 +364,8 @@ import { Spinner } from './spin.js';
   }
 
   function mapTracts (layerName, attr, breaks, colors) {
+    var lineLayerName = layerName + '-line';
+
     map.addLayer({
       id: layerName,
       type: 'fill',
@@ -268,7 +388,7 @@ import { Spinner } from './spin.js';
     }, firstLabelLayer);
 
     map.addLayer({
-      id: layerName + '-line',
+      id: lineLayerName,
       type: 'line',
       source: layerName,
       layout: {
@@ -341,8 +461,14 @@ import { Spinner } from './spin.js';
       var popupContent;
       var props = e.features[0].properties;
 
-      popupContent = '<div class="popup-menu"><p><b>' + titleAttrAlias + props[titleAttr] + '</b></p></div><hr>' +
-      '<div class="popup-menu"><p><b>' + attrAlias + '</b></p><p>' + props[attr] + '</p></div>';
+      // TODO: ADD LOGIC FOR NITRATE INTERPOLATION, CANCER INTERPOLATION, AND REGRESSION
+      if (layerName === 'tracts') {
+        popupContent = '<div class="popup-menu"><p><b>' + titleAttrAlias + props[titleAttr] + '</b></p></div><hr>' +
+        '<div class="popup-menu"><p><b>' + attrAlias + '</b></p><p>' + Math.round(props[attr] * 100) + '%</p></div>';
+      } else if (layerName === 'wells') {
+        popupContent = '<div class="popup-menu"><p><b>' + titleAttrAlias + props[titleAttr] + '</b></p></div><hr>' +
+        '<div class="popup-menu"><p><b>' + attrAlias + '</b></p><p>' + props[attr] + ' ppm</p></div>';
+      }
 
       popup.setLngLat(e.lngLat)
         .setHTML(popupContent)
@@ -356,32 +482,167 @@ import { Spinner } from './spin.js';
     });
   }
 
-  function interpolate (input, weight, cellSize) {
+  function addGridPopups () {
+    map.on('mousemove', 'residuals', function (e) {
+      // Change cursor to pointer on mouseover
+      map.getCanvas().style.cursor = 'pointer';
+
+      var popupContent;
+      var props = e.features[0].properties;
+
+      popupContent = '<div class="popup-menu"><p><b>nitconc:</b> ' + props.nitconc + '</p>' +
+      '<p><b>values:</b> ' + props.values + '</p>' +
+      '<p><b>canrate:</b> ' + props.canrate + '</p>' +
+      '<p><b>canrate_predicted:</b> ' + props.canrate_predicted + '</p>' +
+      '<p><b>residual:</b> ' + props.residual + '</p></div>';
+
+      popup.setLngLat(e.lngLat)
+        .setHTML(popupContent)
+        .addTo(map);
+    });
+
+    map.on('mouseleave', 'residuals', function () {
+      // Change cursor back to default ("grab") on mouseleave
+      map.getCanvas().style.cursor = '';
+      popup.remove();
+    });
+  }
+
+  function interpolate (input, gridType, attr, weight, cellSize) {
     var options = {
-      gridType: 'square', // 1392 overlapping tractCentroids w/ square gridType, 1383 w/ hex
-      property: 'nitconc',
+      gridType: gridType, // 1392 overlapping tractCentroids w/ square gridType, 1383 w/ hex
+      property: attr,
       weight: weight,
       units: 'kilometers'
     };
 
-    nitGrid = turf.interpolate(input, cellSize, options);
+    var interpolation = turf.interpolate(input, cellSize, options);
 
-    nitGrid.features.forEach(function (d) {
-      d.properties.nitconc = parseFloat(d.properties.nitconc.toFixed(2));
+    interpolation.features.forEach(function (d) {
+      d.properties[attr] = parseFloat(d.properties[attr].toFixed(4));
     });
+
+    return interpolation;
   }
 
-  function mapNitGrid (layerName, attr, breaks, colors) {
+  function joinGrid () {
+    // Remove "canrate" property if previously joined to grid
+    if (grid.features[0].properties.canrate) {
+      grid.features.forEach(function (d) {
+        delete d.properties.canrate;
+      });
+    }
+
+    // Remove "values" property (array of collected canrate values) if previously joined to grid
+    if (grid.features[0].properties.values) {
+      grid.features.forEach(function (d) {
+        delete d.properties.values;
+      });
+    }
+
+    // Merge "canrate" property from canPointGrid into grid as "values" property (array)
+    turf.collect(grid, canPointGrid, 'canrate', 'values');
+
+    // Calculate average canrate and add as property to grid features
+    grid.features.forEach(function (d) {
+      if (d.properties.values) {
+        var values = d.properties.values;
+
+        var count = values.length;
+        var sum = 0;
+
+        for (var i in values) {
+          sum += parseFloat(values[i]);
+        }
+
+        d.properties.canrate = parseFloat((sum / count).toFixed(4));
+      }
+    });
+
+    console.log(grid);
+  }
+
+  function calcRegression () {
+    // Remove "canrate_predicted" property if previously calculated
+    if (grid.features[0].properties.canrate_predicted) {
+      grid.features.forEach(function (d) {
+        delete d.properties.canrate_predicted;
+      });
+    }
+
+    // Remove "residual" property if previously calculated
+    if (grid.features[0].properties.residual) {
+      grid.features.forEach(function (d) {
+        delete d.properties.residual;
+      });
+    }
+
+    var regressionCoords = [];
+    var residuals = [];
+
+    grid.features.forEach(function (d) {
+      // Create [x, y] arrays for regression calculation using nitrate concentration as x, cancer rate as y
+      var coord = [d.properties.nitconc, d.properties.canrate];
+      regressionCoords.push(coord);
+    });
+
+    // Calculate regression to find slope and y-intercept of regression line
+    var regression = ss.linearRegression(regressionCoords);
+    console.log(regression);
+
+    var slope = regression.m;
+    var yIntercept = regression.b;
+
+    regressionEquation = 'y = ' + slope.toFixed(4) + 'x + ' + yIntercept.toFixed(4);
+    console.log(regressionEquation);
+
+    grid.features.forEach(function (d) {
+      // Calculate predicted cancer rate using regression equation output
+      var predictedCanrate = parseFloat((slope * d.properties.nitconc + yIntercept).toFixed(4));
+      // Residual = observed - predicted
+      var residual = parseFloat((d.properties.canrate - predictedCanrate).toFixed(4));
+
+      // Push each residual to "residuals" array for use in standard deviation calculation
+      residuals.push(residual);
+
+      // Assign "canrate_predicted" and "residual" properties to each feature
+      d.properties.canrate_predicted = predictedCanrate;
+      d.properties.residual = residual;
+    });
+
+    var regressionLine = ss.linearRegressionLine(regression);
+
+    rSquared = parseFloat((ss.rSquared(regressionCoords, regressionLine)).toFixed(4));
+    console.log(rSquared);
+
+    var stanDev = ss.sampleStandardDeviation(residuals);
+
+    // value < gridBreaks[0] (< -2 stanDev)
+    // gridBreaks[0] <= value <= gridBreaks[1] (-2 stanDev <= value <= -1 standDev)
+    // gridBreaks[1] <= value <= gridBreaks[2] (-1 stanDev <= value <= 1 standDev)
+    // gridBreaks[2] <= value <= gridBreaks[3] (1 stanDev <= value <= 2 standDev)
+    // value > gridBreaks[3] (value > 2 standDev)
+    gridBreaks = [parseFloat((-2 * stanDev).toFixed(4)), parseFloat((-1 * stanDev).toFixed(4)), parseFloat(stanDev.toFixed(4)), parseFloat((2 * stanDev).toFixed(4))];
+    console.log(gridBreaks);
+  }
+
+  function mapGrid (layerName, sourceName, attr, vis, breaks, colors) {
+    var lineLayerName = layerName + '-line';
+
     if (map.getLayer(layerName)) {
       map.removeLayer(layerName);
+    }
+
+    if (map.getLayer(lineLayerName)) {
+      map.removeLayer(lineLayerName);
     }
 
     map.addLayer({
       id: layerName,
       type: 'fill',
-      source: layerName,
+      source: sourceName,
       layout: {
-        visibility: nitGridVis
+        visibility: vis
       },
       paint: {
         'fill-color': [
@@ -398,11 +659,11 @@ import { Spinner } from './spin.js';
     }, firstLabelLayer);
 
     map.addLayer({
-      id: layerName + '-line',
+      id: lineLayerName,
       type: 'line',
-      source: layerName,
+      source: sourceName,
       layout: {
-        visibility: nitGridVis
+        visibility: gridVis
       },
       paint: {
         'line-color': '#fff',
@@ -420,46 +681,7 @@ import { Spinner } from './spin.js';
     }, firstLabelLayer);
   }
 
-  function joinNitGrid (points, polygons, inputAttr, outputAttr) {
-    // Remove nitconc property if previously joined to tract centroids
-    if (tractCentroids.features[0].properties.nitconc) {
-      tractCentroids.features.forEach(function (d) {
-        delete d.properties.nitconc;
-      });
-    }
-
-    // Spatial join points (tract centroids) to polygons (interpolated hexbins) to assign nitconc to tracts
-    // https://turfjs.org/docs/#tag
-    tractCentroids = turf.tag(points, polygons, inputAttr, outputAttr);
-
-    // Remove nitconc property if previously joined to tract polygons
-    if (tracts.features[0].properties.nitconc) {
-      tracts.features.forEach(function (d) {
-        delete d.properties.nitconc;
-      });
-    }
-
-    // Assign nitconc property to tract polygons through join on geoid with tract centroids
-    for (let i = 0; i < tracts.features.length; i++) {
-      var nitconc = tractCentroids.features[i].properties[outputAttr];
-      var cKey = tractCentroids.features[i].properties.geoid;
-      var tKey = tracts.features[i].properties.geoid;
-
-      if (cKey === tKey) {
-        tracts.features[i].properties[outputAttr] = nitconc;
-      }
-    }
-
-    var count = 0;
-    tractCentroids.features.forEach(function (d) {
-      if (d.properties.nitconc) {
-        count += 1;
-      }
-    });
-    console.log('Tracts intersecting nitGrid (of 1401):', count);
-  }
-
-  function mapTractCentroids (layerName, attr) {
+  function mapPoints (layerName) {
     map.addLayer({
       id: layerName,
       type: 'circle',

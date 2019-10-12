@@ -10,6 +10,65 @@ body {
   padding: 0;
 }
 
+input[type="checkbox"],
+input[type="radio"] {
+  vertical-align: middle;
+}
+
+.bottom-left {
+  bottom: 0;
+  left: 0;
+  margin: 0 0 40px 10px;
+}
+
+.form {
+  max-width: 220px;
+}
+
+.form-label {
+  margin-bottom: 6px;
+}
+
+.form-menu {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.form-menu:first-child {
+  border-top: 0;
+}
+
+.form-menu:last-child {
+  border-bottom: 0;
+}
+
+.form-menu a {
+  color: #333;
+}
+
+.form-menu,
+.layers-form-menu {
+  padding: 8px;
+}
+
+.layers-toggle {
+  right: 10px;
+  top: 120px;
+}
+
+.layers-icon {
+  padding: 2px;
+}
+
+.layers-image {
+  height: 30px;
+  width: 30px;
+}
+
+.layers-menu {
+  display: none;
+}
+
 .mapboxgl-popup-content {
   background: #333;
   color: #efefef;
@@ -49,4 +108,33 @@ body {
 }
 .mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
     border-left-color: #333;
+}
+
+.map-overlay {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+  position: absolute;
+}
+
+.small {
+  font-size: 12px;
+}
+
+.title h1 {
+  font-size: 16px;
+  margin: 0 0 6px;
+}
+
+.title p {
+  margin: 0;
+}
+
+.toggle label {
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+.v-middle {
+  vertical-align: middle;
 }
