@@ -33,38 +33,86 @@ import { Spinner } from './spin.js';
   var mapLayers;
   var firstLabelLayer;
 
-  var tracts;
-  var tractsVis = 'visible';
-  var tractsBreaks = [];
-  var tractsColors = ['#eff3ff', '#bdd7e7', '#6baed6', '#3182bd', '#08519c'];
+  var canColors = ['#eff3ff', '#bdd7e7', '#6baed6', '#3182bd', '#08519c']; // blue
+  // var canColors = ['#f2f0f7', '#cbc9e2', '#9e9ac8', '#756bb1', '#54278f']; // purple
 
-  var tractCentroids;
+  var nitColors = ['#fef0d9', '#fdcc8a', '#fc8d59', '#e34a33', '#b30000']; // red
+  // var nitColors = ['#edf8e9', '#bae4b3', '#74c476', '#31a354', '#006d2c']; // green
 
-  var wells;
-  var wellsVis = 'visible';
-  var wellsBreaks = [];
-  var wellsColors = ['#fef0d9', '#fdcc8a', '#fc8d59', '#e34a33', '#b30000'];
+  var resColors = ['#0571b0', '#92c5de', '#f7f7f7', '#f4a582', '#ca0020']; // red/white/blue
+  // var resColors = ['#2c7bb6', '#abd9e9', '#ffffbf', '#fdae61', '#d7191c']; // red/yellow/blue
+  // var resColors = ['#7b3294', '#c2a5cf', '#f7f7f7', '#a6dba0', '#008837']; // purple/white/green
 
-  var nitGridVis;
-  var nitGridBreaks = [];
+  // var resColors = ['#d73027', '#fc8d59', '#fee090', '#ffffbf', '#e0f3f8', '#91bfdb', '#4575b4'] // red/white/blue
+  // var resColors = ['#762a83', '#af8dc3', '#e7d4e8', '#f7f7f7', '#d9f0d3', '#7fbf7b', '#1b7837']; // purple/white/green
 
-  var canPointGrid;
-
-  var canGridVis;
-  var canGridBreaks = [];
-
-  var grid;
-  var gridVis;
-  var gridBreaks = [];
-  // var gridColors = ['#0571b0', '#92c5de', '#f7f7f7', '#f4a582', '#ca0020'];
-  // var gridColors = ['#2c7bb6', '#abd9e9', '#ffffbf', '#fdae61', '#d7191c'];
-  var gridColors = ['#7b3294', '#c2a5cf', '#f7f7f7', '#a6dba0', '#008837'];
+  var tracts,
+    tractCentroids,
+    wells,
+    canPointGrid,
+    grid,
+    regressionEquation,
+    rSquared;
 
   var distDecay; // 2-100
   var cellSize; // 6-15; cellSize must be >= 6 for each grid hexbin to intersect a canPointGrid point
 
-  var regressionEquation;
-  var rSquared;
+  // Declare sample data layers as objects of array
+  var sampleLayers = [{
+    label: 'Census Tracts',
+    id: 'tracts',
+    source: {},
+    sourceName: 'tracts',
+    visibility: 'visible',
+    uid: 'geoid',
+    uidAlias: 'Tract #',
+    attr: 'canrate',
+    attrAlias: 'Cancer Rate',
+    breaks: [],
+    colors: canColors
+  }, {
+    label: 'Test Wells',
+    id: 'wells',
+    source: {},
+    sourceName: 'wells',
+    visibility: 'visible',
+    uid: 'id',
+    uidAlias: 'Well #',
+    attr: 'nitconc',
+    attrAlias: 'Nitrate Concentration',
+    breaks: [],
+    colors: nitColors
+  }];
+
+  // Declare regression layers as objects of array
+  var regressionLayers = [{
+    label: 'Regression',
+    id: 'residuals',
+    source: {},
+    sourceName: 'grid',
+    visibility: 'visible',
+    attr: 'residual',
+    breaks: [],
+    colors: resColors
+  }, {
+    label: 'Nitrate Interpolation',
+    id: 'nitconc-grid',
+    source: {},
+    sourceName: 'grid',
+    visibility: 'none',
+    attr: 'nitconc',
+    breaks: [],
+    colors: nitColors
+  }, {
+    label: 'Cancer Interpolation',
+    id: 'canrate-grid',
+    source: {},
+    sourceName: 'grid',
+    visibility: 'none',
+    attr: 'canrate',
+    breaks: [],
+    colors: canColors
+  }];
 
   mapboxgl.accessToken = 'pk.eyJ1IjoiY2hhZGxhd2xpcyIsImEiOiJlaERjUmxzIn0.P6X84vnEfttg0TZ7RihW1g';
 
@@ -89,22 +137,6 @@ import { Spinner } from './spin.js';
   };
 
   map.fitBounds(zoomToBounds, zoomToOptions);
-
-  // Declare regression layers for map style switcher
-  // See regressionLayers.forEach() in map.onLoad() for menu creation
-  var regressionLayers = [{
-    label: 'Regression',
-    id: 'residuals',
-    visibility: gridVis
-  }, {
-    label: 'Nitrate Interpolation',
-    id: 'nitconc-grid',
-    visibility: nitGridVis
-  }, {
-    label: 'Cancer Interpolation',
-    id: 'canrate-grid',
-    visibility: canGridVis
-  }];
 
   // Create popup, but don't add it to the map yet
   var popup = new mapboxgl.Popup({
@@ -167,86 +199,81 @@ import { Spinner } from './spin.js';
     layersToggle.className = 'layers-toggle map-overlay';
 
     var layersImage = document.createElement('div'); // Create "layers-image" div with Leaflet layers icon; default display
-    layersImage.id = 'layers-image';
     layersImage.className = 'layers-image';
     var layersImageAnchor = document.createElement('a');
     layersImage.appendChild(layersImageAnchor);
     layersToggle.appendChild(layersImage);
 
     var layersMenu = document.createElement('div'); // Create "layers-menu" div; displays on mouseover
-    layersMenu.id = 'layers-menu';
     layersMenu.className = 'layers-menu';
 
-    var overlayLayersMenu = document.createElement('div');
-    overlayLayersMenu.id = 'overlay-layers-menu';
-    overlayLayersMenu.className = 'layers-form-menu';
+    var sampleLayersMenu = document.createElement('div');
+    sampleLayersMenu.className = 'form-menu sample-layers';
 
-    var tractsOverlayToggle = document.createElement('div');
-    tractsOverlayToggle.className = 'overlay-layer-checkbox toggle';
-    var tractsOverlayToggleInput = document.createElement('input');
-    tractsOverlayToggleInput.type = 'checkbox';
-    tractsOverlayToggleInput.id = 'tracts-checkbox-input';
-    tractsOverlayToggleInput.checked = true;
-    var tractsOverlayToggleLabel = document.createElement('label');
-    tractsOverlayToggleLabel.textContent = 'Tracts';
-    tractsOverlayToggle.appendChild(tractsOverlayToggleInput);
-    tractsOverlayToggle.appendChild(tractsOverlayToggleLabel);
-    overlayLayersMenu.appendChild(tractsOverlayToggle);
+    sampleLayers.forEach(function (l) {
+      var layerDiv = document.createElement('div');
+      layerDiv.className = 'toggle';
+      var layerInput = document.createElement('input');
+      layerInput.type = 'checkbox';
+      layerInput.id = l.id;
+      layerInput.checked = true;
+      var layerLabel = document.createElement('label');
+      layerLabel.textContent = l.label;
+      layerDiv.appendChild(layerInput);
+      layerDiv.appendChild(layerLabel);
+      sampleLayersMenu.appendChild(layerDiv);
 
-    tractsOverlayToggleInput.addEventListener('change', function (e) {
-      map.setLayoutProperty('tracts', 'visibility', e.target.checked ? 'visible' : 'none');
-      map.setLayoutProperty('tracts-line', 'visibility', e.target.checked ? 'visible' : 'none');
-      tractsVis = map.getLayoutProperty('tracts', 'visibility');
+      layerInput.addEventListener('change', function (e) {
+        map.setLayoutProperty(l.id, 'visibility', e.target.checked ? 'visible' : 'none');
+        l.visibility = map.getLayoutProperty(l.id, 'visibility');
+
+        if (l.id === 'tracts') {
+          map.setLayoutProperty(l.id + '-line', 'visibility', e.target.checked ? 'visible' : 'none');
+        }
+      });
     });
 
-    var wellsOverlayToggle = document.createElement('div');
-    wellsOverlayToggle.className = 'overlay-layer-checkbox toggle';
-    var wellsOverlayToggleInput = document.createElement('input');
-    wellsOverlayToggleInput.type = 'checkbox';
-    wellsOverlayToggleInput.id = 'wells-checkbox-input';
-    wellsOverlayToggleInput.checked = true;
-    var wellsOverlayToggleLabel = document.createElement('label');
-    wellsOverlayToggleLabel.textContent = 'Wells';
-    wellsOverlayToggle.appendChild(wellsOverlayToggleInput);
-    wellsOverlayToggle.appendChild(wellsOverlayToggleLabel);
-    overlayLayersMenu.appendChild(wellsOverlayToggle);
-
-    wellsOverlayToggleInput.addEventListener('change', function (e) {
-      map.setLayoutProperty('wells', 'visibility', e.target.checked ? 'visible' : 'none');
-      wellsVis = map.getLayoutProperty('wells', 'visibility');
-    });
-
-    layersMenu.appendChild(overlayLayersMenu);
+    layersMenu.appendChild(sampleLayersMenu);
 
     var regressionLayersMenu = document.createElement('div');
-    regressionLayersMenu.id = 'regression-layers-menu';
-    regressionLayersMenu.className = 'layers-form-menu';
+    regressionLayersMenu.className = 'form-menu regression-layers';
 
     regressionLayers.forEach(function (l) { // Instantiate layersMenu with an input for each regression layer declared at top of script
       var layerDiv = document.createElement('div'); // Store each input in a div for vertical list display
-      layerDiv.id = l.id + '-input';
       layerDiv.className = 'toggle';
       var layerInput = document.createElement('input');
-      layerInput.id = l.id;
       layerInput.type = 'radio';
+      layerInput.id = l.id;
       layerInput.name = 'regression-layer';
       layerInput.value = l.id;
       layerInput.disabled = true;
-      layerDiv.appendChild(layerInput);
-
       var layerLabel = document.createElement('label');
       layerLabel.for = l.label.toLowerCase();
       layerLabel.textContent = l.label;
+      layerDiv.appendChild(layerInput);
       layerDiv.appendChild(layerLabel);
-
       regressionLayersMenu.appendChild(layerDiv);
+
+      layerInput.addEventListener('click', function (e) {
+        var layerId = e.target.id;
+
+        regressionLayers.forEach(function (l) {
+          if (layerId === l.id) {
+            map.setLayoutProperty(l.id, 'visibility', 'visible');
+            map.setLayoutProperty(l.id + '-line', 'visibility', 'visible');
+            l.visibility = 'visible';
+          } else {
+            map.setLayoutProperty(l.id, 'visibility', 'none');
+            map.setLayoutProperty(l.id + '-line', 'visibility', 'none');
+            l.visibility = 'none';
+          }
+        });
+      });
     });
 
     layersMenu.appendChild(regressionLayersMenu);
-    layersToggle.appendChild(layersMenu);
 
-    var regressionLayerInputs = regressionLayersMenu.getElementsByTagName('input');
-    console.log(regressionLayerInputs);
+    layersToggle.appendChild(layersMenu);
 
     layersToggle.addEventListener('mouseover', function (e) {
       layersMenu.style.display = 'block'; // Display layer switcher menu on hover ..
@@ -259,13 +286,13 @@ import { Spinner } from './spin.js';
     });
 
     var form = document.getElementById('form');
-    form.className = 'map-overlay bottom-left';
+    form.className = 'bottom-left map-overlay';
 
     var title = document.createElement('div');
     title.id = 'title';
-    title.className = 'form form-menu title';
+    title.className = 'form-menu title';
     title.innerHTML = '<h1>Nitrate & Cancer in WI</h1>' +
-    '<p>Explore the relationship between well water nitrate concentration and cancer rates in Wisconsin' +
+    '<p>Explore the relationship between well water nitrate concentrations and cancer rates in Wisconsin' +
     '&nbsp;<a href="#about"><i class="fas fa-question-circle small" title="About"></i></a></p>'; // "&nbsp;" = non-breaking space
     form.appendChild(title);
 
@@ -297,11 +324,11 @@ import { Spinner } from './spin.js';
 
     distDecayInput.addEventListener('change', function () {
       if (distDecayInput.validity.valid && cellSizeInput.validity.valid) {
-        if (distDecayInput.value !== distDecay) {
+        if (parseFloat(distDecayInput.value) !== distDecay) {
           submitButton.disabled = false;
         }
 
-        if (distDecayInput.value === distDecay && cellSizeInput.value === cellSize) {
+        if (parseFloat(distDecayInput.value) === distDecay && parseFloat(cellSizeInput.value) === cellSize) {
           submitButton.disabled = true;
         }
       }
@@ -341,11 +368,11 @@ import { Spinner } from './spin.js';
 
     cellSizeInput.addEventListener('change', function () {
       if (cellSizeInput.validity.valid && distDecayInput.validity.valid) {
-        if (cellSizeInput.value !== cellSize) {
+        if (parseFloat(cellSizeInput.value) !== cellSize) {
           submitButton.disabled = false;
         }
 
-        if (cellSizeInput.value === cellSize && distDecayInput.value === distDecay) {
+        if (parseFloat(cellSizeInput.value) === cellSize && parseFloat(distDecayInput.value) === distDecay) {
           submitButton.disabled = true;
         }
       }
@@ -363,7 +390,6 @@ import { Spinner } from './spin.js';
     form.appendChild(formInputs);
 
     var formInputButtonsDiv = document.createElement('div');
-    formInputButtonsDiv.id = 'form-input-buttons';
     formInputButtonsDiv.className = 'form-input-buttons';
 
     var submitButton = document.createElement('button');
@@ -374,36 +400,35 @@ import { Spinner } from './spin.js';
     submitButton.textContent = 'Submit';
 
     submitButton.addEventListener('click', function () {
-      if (tractsVis === 'visible') {
-        map.setLayoutProperty('tracts', 'visibility', 'none');
-        map.setLayoutProperty('tracts-line', 'visibility', 'none');
-        tractsVis = 'none';
-        tractsOverlayToggleInput.checked = false;
-      }
+      sampleLayers.forEach(function (l) {
+        map.setLayoutProperty(l.id, 'visibility', 'none');
+        l.visibility = 'none';
 
-      if (wellsVis === 'visible') {
-        map.setLayoutProperty('wells', 'visibility', 'none');
-        wellsVis = 'none';
-        wellsOverlayToggleInput.checked = false;
-      }
-
-      distDecay = distDecayInput.value;
-      cellSize = cellSizeInput.value;
-
-      for (let i = 0; i < regressionLayerInputs.length; i++) {
-        regressionLayerInputs[i].disabled = false;
-
-        if (regressionLayerInputs[i].id === 'residuals') {
-          regressionLayerInputs[i].checked = true;
-          // map.setLayoutProperty(regressionLayerInputs[i].id, 'visibility', 'visible');
-          // map.setLayoutProperty(regressionLayerInputs[i].id + '-line', 'visibility', 'visible');
-          // regressionLayerInputs[i].visibility = 'visible';
-        } else {
-          // map.setLayoutProperty(regressionLayerInputs[i].id, 'visibility', 'none');
-          // map.setLayoutProperty(regressionLayerInputs[i].id + '-line', 'visibility', 'none');
-          // regressionLayerInputs[i].visibility = 'none';
+        if (l.id === 'tracts') {
+          map.setLayoutProperty(l.id + '-line', 'visibility', 'none');
         }
-      }
+
+        var input = document.getElementById(l.id);
+        input.checked = false;
+        input.disabled = true;
+      });
+
+      regressionLayers.forEach(function (l) {
+        var input = document.getElementById(l.id);
+        input.disabled = false;
+
+        if (l.id === 'residuals') {
+          input.checked = true;
+          l.visibility = 'visible';
+        } else {
+          l.visibility = 'none';
+        }
+      });
+
+      distDecay = parseFloat(distDecayInput.value);
+      cellSize = parseFloat(cellSizeInput.value);
+
+      calculate();
 
       submitButton.disabled = true;
       resetButton.disabled = false;
@@ -416,9 +441,40 @@ import { Spinner } from './spin.js';
     resetButton.disabled = true;
     resetButton.textContent = 'Reset';
 
+    resetButton.addEventListener('click', function () {
+      regressionLayers.forEach(function (l) {
+        map.removeLayer(l.id);
+        map.removeLayer(l.id + '-line');
 
-    // TODO: ONLY ENABLE RESET BUTTON AFTER SUBMIT (cellSize and distDecay are numbers / not undefined)
+        var input = document.getElementById(l.id);
+        input.disabled = true;
+        input.checked = false;
+      });
 
+      map.removeSource('grid');
+
+      sampleLayers.forEach(function (l) {
+        map.setLayoutProperty(l.id, 'visibility', 'visible');
+        l.visibility = 'visible';
+
+        if (l.id === 'tracts') {
+          map.setLayoutProperty(l.id + '-line', 'visibility', 'visible');
+        }
+
+        var input = document.getElementById(l.id);
+        input.checked = true;
+        input.disabled = false;
+      });
+
+      distDecay = undefined;
+      cellSize = undefined;
+
+      distDecayInput.value = '';
+      cellSizeInput.value = '';
+
+      resetButton.disabled = true;
+      submitButton.disabled = true;
+    });
 
     formInputButtonsDiv.appendChild(submitButton);
     formInputButtonsDiv.appendChild(resetButton);
@@ -437,6 +493,10 @@ import { Spinner } from './spin.js';
       tracts = data[0];
       wells = data[1];
 
+      for (let i = 0; i < sampleLayers.length; i++) {
+        sampleLayers[i].source = data[i];
+      }
+
       // Create deep copy tractCentroids of tracts for use in interpolation aggregation and regression
       // (changes to copy tractCentroids properties should not affect original tract properties)
       // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/assign
@@ -453,69 +513,31 @@ import { Spinner } from './spin.js';
         d.properties.nitconc = parseFloat(d.properties.nitconc.toFixed(2));
       });
 
-      // Add map sources
-      addSource('tracts', tracts);
-      addSource('wells', wells);
-
-      // Calculate breakpoints
-      tractsBreaks = calcBreaks(tracts, 'tracts', 'canrate');
-      wellsBreaks = calcBreaks(wells, 'wells', 'nitconc');
-
-      // Add map layers
-      mapTracts('tracts', 'canrate', tractsBreaks, tractsColors);
-      mapWells('wells', 'nitconc', wellsBreaks, wellsColors);
-
-      addPopups('tracts', 'geoid', 'Tract #', 'canrate', 'Cancer Rate');
-      addPopups('wells', 'id', 'Well #', 'nitconc', 'Nitrate Concentration');
+      // Add sample layers
+      sampleLayers.forEach(function (l) {
+        addSource(l.sourceName, l.source);
+        l.breaks = calcBreaks(l.source, l.id, l.attr);
+        mapSampleLayers(l.id, l.sourceName, l.attr, l.visibility, l.breaks, l.colors);
+        addPopups(l.id, l.uid, l.uidAlias, l.attr, l.attrAlias);
+      });
 
       // TODO
       // Create legend
       // REMEMBER TO CONVERT DECIMAL TO PERCENTAGE INTEGER FOR TRACT/CANCER INTERPOLATION LEGEND LABELS
 
-      // // Generate interpolated hexbin grid on well nitrate concentrations
-      // grid = interpolate(wells, 'hex', 'nitconc', distDecay, cellSize);
-      //
-      // // Generate interpolated point grid on tract centroid cancer rates
-      // canPointGrid = interpolate(tractCentroids, 'point', 'canrate', distDecay, cellSize);
-      //
-      // // Merge "canrate" property from canPointGrid into grid as "values" property (array)
-      // joinGrid();
-      //
-      // // Calculate "canrate_predicted" via linear regression
-      // // along with residuals and standard deviation of residuals breaks for symbolizing
-      // calcRegression();
-      //
-      // addSource('grid', grid);
-
-      // // Calculate interpolated nitrate concentrations hexbin grid breakpoints
-      // nitGridBreaks = calcBreaks(grid, 'nitconc-grid', 'nitconc');
-      //
-      // // Map interpolated nitrate concentrations hexbin grid
-      // mapGrid('nitconc-grid', 'grid', 'nitconc', nitGridVis, nitGridBreaks, wellsColors);
-
-      // // Calculate interpolated cancer rate breakpoints for hexbins
-      // canGridBreaks = calcBreaks(grid, 'canrate-grid', 'canrate');
-      //
-      // // Map interpolated cancer rates hexbin grid
-      // mapGrid('canrate-grid', 'grid', 'canrate', canGridVis, canGridBreaks, tractsColors);
-
-      // // Map cancer rate residuals (observed - predicted) to standard deviation of residuals breakpoints
-      // mapGrid('residuals', 'grid', 'residual', gridVis, gridBreaks, gridColors);
-      //
-      // // For testing (?)
-      // // TODO: BUILD LOGIC INTO addPopups FUNCTION
-      // addGridPopups();
-
-      // For testing / beta demo
-      // addSource('tractCentroids', tractCentroids);
-      // mapPoints('tractCentroids');
-
-      // For testing
-      // addSource('canPointGrid', canPointGrid);
-      // mapPoints('canPointGrid');
-
       // Stop spinner once all page load functions have been called
       spinner.stop();
+    });
+  }
+
+  function addSource (sourceName, sourceData) {
+    if (map.getSource(sourceName)) {
+      map.removeSource(sourceName);
+    }
+
+    map.addSource(sourceName, {
+      type: 'geojson',
+      data: sourceData
     });
   }
 
@@ -543,109 +565,98 @@ import { Spinner } from './spin.js';
     // to create actual breakpoints for Mapbox (minimum value of each break is included in classification)
     breaks.shift();
 
-    console.log(layerName + 'Breaks', breaks);
+    console.log(layerName + ' breaks:', breaks);
     return breaks;
   }
 
-  function addSource (sourceName, sourceData) {
-    if (map.getSource(sourceName)) {
-      map.removeSource(sourceName);
+  function mapSampleLayers (layerName, sourceName, attr, visibility, breaks, colors) {
+    if (layerName === 'tracts') {
+      var lineLayerName = layerName + '-line';
+
+      map.addLayer({
+        id: layerName,
+        type: 'fill',
+        source: sourceName,
+        layout: {
+          visibility: visibility
+        },
+        paint: {
+          'fill-color': [
+            'step',
+            ['get', attr],
+            colors[0],
+            breaks[0], colors[1],
+            breaks[1], colors[2],
+            breaks[2], colors[3],
+            breaks[3], colors[4]
+          ],
+          'fill-opacity': 1
+        }
+      }, firstLabelLayer);
+
+      map.addLayer({
+        id: lineLayerName,
+        type: 'line',
+        source: sourceName,
+        layout: {
+          visibility: visibility
+        },
+        paint: {
+          'line-color': '#fff',
+          'line-width': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            // when zoom <= 6, line-width: 0.25
+            6, 0.25,
+            // when zoom >= 12, line-width: 1.5
+            12, 1.5
+            // in between, line-width will be linearly interpolated between 0.25 and 1.5 pixels
+          ]
+        }
+      }, firstLabelLayer);
+    } else if (layerName === 'wells') {
+      map.addLayer({
+        id: layerName,
+        type: 'circle',
+        source: layerName,
+        layout: {
+          visibility: visibility
+        },
+        paint: {
+          'circle-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            // when zoom <= 4, circle-radius: 2
+            4, 2,
+            // when zoom >= 12, circle-radius: 6
+            12, 6
+            // in between, circle-radius will be linearly interpolated between 2 and 6 pixels
+          ],
+          'circle-color': [
+            'step',
+            ['get', attr],
+            colors[0],
+            breaks[0], colors[1],
+            breaks[1], colors[2],
+            breaks[2], colors[3],
+            breaks[3], colors[4]
+          ],
+          'circle-stroke-width': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            // when zoom <= 4, circle-stroke-width: 0.25
+            4, 0.25,
+            // when zoom >= 12, circle-stroke-width: 0.5
+            12, 0.5
+            // in between, circle-stroke-width will be linearly interpolated between 0.25 and 0.5 pixels
+          ],
+          'circle-stroke-color': '#333'
+        }
+      }, firstLabelLayer);
     }
-
-    map.addSource(sourceName, {
-      type: 'geojson',
-      data: sourceData
-    });
-  }
-
-  function mapTracts (layerName, attr, breaks, colors) {
-    var lineLayerName = layerName + '-line';
-
-    map.addLayer({
-      id: layerName,
-      type: 'fill',
-      source: layerName,
-      layout: {
-        visibility: tractsVis
-      },
-      paint: {
-        'fill-color': [
-          'step',
-          ['get', attr],
-          colors[0],
-          breaks[0], colors[1],
-          breaks[1], colors[2],
-          breaks[2], colors[3],
-          breaks[3], colors[4]
-        ],
-        'fill-opacity': 1
-      }
-    }, firstLabelLayer);
-
-    map.addLayer({
-      id: lineLayerName,
-      type: 'line',
-      source: layerName,
-      layout: {
-        visibility: tractsVis
-      },
-      paint: {
-        'line-color': '#fff',
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          // when zoom <= 6, line-width: 0.25
-          6, 0.25,
-          // when zoom >= 12, line-width: 1.5
-          12, 1.5
-          // in between, line-width will be linearly interpolated between 0.25 and 1.5 pixels
-        ]
-      }
-    }, firstLabelLayer);
-  }
-
-  function mapWells (layerName, attr, breaks, colors) {
-    map.addLayer({
-      id: layerName,
-      type: 'circle',
-      source: layerName,
-      layout: {
-        visibility: wellsVis
-      },
-      paint: {
-        'circle-radius': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          // when zoom <= 4, circle-radius: 2
-          4, 2,
-          // when zoom >= 12, circle-radius: 6
-          12, 6
-          // in between, circle-radius will be linearly interpolated between 2 and 6 pixels
-        ],
-        'circle-color': [
-          'step',
-          ['get', attr],
-          colors[0],
-          breaks[0], colors[1],
-          breaks[1], colors[2],
-          breaks[2], colors[3],
-          breaks[3], colors[4]
-        ],
-        'circle-stroke-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          // when zoom <= 4, circle-stroke-width: 0.25
-          4, 0.25,
-          // when zoom >= 12, circle-stroke-width: 0.5
-          12, 0.5
-          // in between, circle-stroke-width will be linearly interpolated between 0.25 and 0.5 pixels
-        ],
-        'circle-stroke-color': '#333'
-      }
-    }, firstLabelLayer);
   }
 
   function addPopups (layerName, titleAttr, titleAttrAlias, attr, attrAlias) {
@@ -677,35 +688,48 @@ import { Spinner } from './spin.js';
     });
   }
 
-  function addGridPopups () {
-    map.on('mousemove', 'residuals', function (e) {
-      // Change cursor to pointer on mouseover
-      map.getCanvas().style.cursor = 'pointer';
-
-      var popupContent;
-      var props = e.features[0].properties;
-
-      popupContent = '<div class="popup-menu"><p><b>nitconc:</b> ' + props.nitconc + '</p>' +
-      '<p><b>values:</b> ' + props.values + '</p>' +
-      '<p><b>canrate:</b> ' + props.canrate + '</p>' +
-      '<p><b>canrate_predicted:</b> ' + props.canrate_predicted + '</p>' +
-      '<p><b>residual:</b> ' + props.residual + '</p></div>';
-
-      popup.setLngLat(e.lngLat)
-        .setHTML(popupContent)
-        .addTo(map);
+  function calculate () {
+    regressionLayers.forEach(function (l) {
+      if (map.getLayer(l.id)) {
+        map.removeLayer(l.id);
+        map.removeLayer(l.id + '-line');
+      }
     });
 
-    map.on('mouseleave', 'residuals', function () {
-      // Change cursor back to default ("grab") on mouseleave
-      map.getCanvas().style.cursor = '';
-      popup.remove();
+    // Generate interpolated hexbin grid on well nitrate concentrations
+    grid = interpolate(wells, 'hex', 'nitconc', distDecay, cellSize);
+
+    // Generate interpolated point grid on tract centroid cancer rates
+    canPointGrid = interpolate(tractCentroids, 'point', 'canrate', distDecay, cellSize);
+
+    // Merge "canrate" property from canPointGrid into grid as "values" property (array)
+    joinGrid();
+
+    // Calculate "canrate_predicted" via linear regression
+    // along with residuals and standard deviation of residuals breaks for symbolizing
+    calcRegression();
+
+    console.log('grid:', grid);
+    addSource('grid', grid);
+
+    regressionLayers.forEach(function (l) {
+      l.source = grid;
+
+      if (l.id !== 'residuals') {
+        l.breaks = calcBreaks(l.source, l.id, l.attr);
+      }
+
+      mapGrid(l.id, l.sourceName, l.attr, l.visibility, l.breaks, l.colors);
     });
+
+    // TODO: INCLUDE LOGIC FOR nitconc-grid + canrate-grid (ADD ATTRIBUTES/ALIASES TO OBJECTS?)
+    // BUILD LOGIC INTO addPopups FUNCTION ?
+    addGridPopups();
   }
 
   function interpolate (input, gridType, attr, distDecay, cellSize) {
     var options = {
-      gridType: gridType, // 1392 overlapping tractCentroids w/ square gridType, 1383 w/ hex
+      gridType: gridType,
       property: attr,
       weight: distDecay,
       units: 'kilometers'
@@ -753,8 +777,6 @@ import { Spinner } from './spin.js';
         d.properties.canrate = parseFloat((sum / count).toFixed(4));
       }
     });
-
-    console.log(grid);
   }
 
   function calcRegression () {
@@ -789,7 +811,7 @@ import { Spinner } from './spin.js';
     var yIntercept = regression.b;
 
     regressionEquation = 'y = ' + slope.toFixed(4) + 'x + ' + yIntercept.toFixed(4);
-    console.log(regressionEquation);
+    console.log('regressionEquation:', regressionEquation);
 
     grid.features.forEach(function (d) {
       // Calculate predicted cancer rate using regression equation output
@@ -808,20 +830,25 @@ import { Spinner } from './spin.js';
     var regressionLine = ss.linearRegressionLine(regression);
 
     rSquared = parseFloat((ss.rSquared(regressionCoords, regressionLine)).toFixed(4));
-    console.log(rSquared);
+    console.log('rSquared:', rSquared);
 
     var stanDev = ss.sampleStandardDeviation(residuals);
 
-    // value < gridBreaks[0] (< -2 stanDev)
-    // gridBreaks[0] <= value <= gridBreaks[1] (-2 stanDev <= value <= -1 standDev)
-    // gridBreaks[1] <= value <= gridBreaks[2] (-1 stanDev <= value <= 1 standDev)
-    // gridBreaks[2] <= value <= gridBreaks[3] (1 stanDev <= value <= 2 standDev)
-    // value > gridBreaks[3] (value > 2 standDev)
-    gridBreaks = [parseFloat((-2 * stanDev).toFixed(4)), parseFloat((-1 * stanDev).toFixed(4)), parseFloat(stanDev.toFixed(4)), parseFloat((2 * stanDev).toFixed(4))];
-    console.log(gridBreaks);
+    // value < breaks[0] (< -2 stanDev)
+    // breaks[0] <= value <= breaks[1] (-2 stanDev <= value <= -1 standDev)
+    // breaks[1] <= value <= breaks[2] (-1 stanDev <= value <= 1 standDev)
+    // breaks[2] <= value <= breaks[3] (1 stanDev <= value <= 2 standDev)
+    // value > breaks[3] (value > 2 standDev)
+    regressionLayers.forEach(function (l) {
+      if (l.id === 'residuals') {
+        l.breaks = [parseFloat((-2 * stanDev).toFixed(4)), parseFloat((-1 * stanDev).toFixed(4)), parseFloat(stanDev.toFixed(4)), parseFloat((2 * stanDev).toFixed(4))];
+        // l.breaks = [parseFloat((-1.5 * stanDev).toFixed(4)), parseFloat((-1 * stanDev).toFixed(4)), parseFloat((-0.5 * stanDev).toFixed(4)), parseFloat((0.5 * stanDev).toFixed(4)), parseFloat(stanDev.toFixed(4)), parseFloat((1.5 * stanDev).toFixed(4))];
+        console.log(l.id + ' breaks:', l.breaks);
+      }
+    });
   }
 
-  function mapGrid (layerName, sourceName, attr, vis, breaks, colors) {
+  function mapGrid (layerName, sourceName, attr, visibility, breaks, colors) {
     var lineLayerName = layerName + '-line';
 
     if (map.getLayer(layerName)) {
@@ -837,7 +864,7 @@ import { Spinner } from './spin.js';
       type: 'fill',
       source: sourceName,
       layout: {
-        visibility: vis
+        visibility: visibility
       },
       paint: {
         'fill-color': [
@@ -851,14 +878,14 @@ import { Spinner } from './spin.js';
         ],
         'fill-opacity': 1
       }
-    }, 'tracts'); // place under tracts, so tracts will render above grid when tracts checkbox checked
+    }, 'tracts'); // place under tracts, so tracts will render above grid if decide to enable tracts checkbox after submit
 
     map.addLayer({
       id: lineLayerName,
       type: 'line',
       source: sourceName,
       layout: {
-        visibility: gridVis
+        visibility: visibility
       },
       paint: {
         'line-color': '#fff',
@@ -873,20 +900,32 @@ import { Spinner } from './spin.js';
           // in between, line-width will be linearly interpolated between 0.5 and 1.2 pixels
         ]
       }
-    }, 'tracts'); // place under tracts, so tracts will render above grid when tracts checkbox checked
+    }, 'tracts'); // place under tracts, so tracts will render above grid if decide to enable tracts checkbox after submit
   }
 
-  // function mapPoints (layerName) {
-  //   map.addLayer({
-  //     id: layerName,
-  //     type: 'circle',
-  //     source: layerName,
-  //     paint: {
-  //       'circle-radius': 3,
-  //       'circle-color': '#333',
-  //       'circle-stroke-width': 0.5,
-  //       'circle-stroke-color': '#fff'
-  //     }
-  //   });
-  // }
+  function addGridPopups () {
+    map.on('mousemove', 'residuals', function (e) {
+      // Change cursor to pointer on mouseover
+      map.getCanvas().style.cursor = 'pointer';
+
+      var popupContent;
+      var props = e.features[0].properties;
+
+      popupContent = '<div class="popup-menu"><p><b>nitconc:</b> ' + props.nitconc + '</p>' +
+      '<p><b>values:</b> ' + props.values + '</p>' +
+      '<p><b>canrate:</b> ' + props.canrate + '</p>' +
+      '<p><b>canrate_predicted:</b> ' + props.canrate_predicted + '</p>' +
+      '<p><b>residual:</b> ' + props.residual + '</p></div>';
+
+      popup.setLngLat(e.lngLat)
+        .setHTML(popupContent)
+        .addTo(map);
+    });
+
+    map.on('mouseleave', 'residuals', function () {
+      // Change cursor back to default ("grab") on mouseleave
+      map.getCanvas().style.cursor = '';
+      popup.remove();
+    });
+  }
 })();

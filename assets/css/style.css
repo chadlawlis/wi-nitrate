@@ -27,13 +27,11 @@ body {
   margin-bottom: 6px;
 }
 
-.form {
-  max-width: 220px;
-}
-
 .form-menu {
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   border-top: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  max-width: 220px;
 }
 
 .form-menu:first-child {
@@ -46,10 +44,6 @@ body {
 
 .form-menu a {
   color: #333;
-}
-
-.form-menu {
-  padding: 10px;
 }
 
 .form-input-buttons {
@@ -86,18 +80,6 @@ input:valid+span:after {
 
 .input-button:first-child {
   margin-right: 5px;
-}
-
-.layers-form-menu {
-  padding: 8px;
-}
-
-.layers-form-menu:first-child {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.layers-form-menu:last-child {
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .layers-image {
