@@ -10,23 +10,25 @@ body {
   padding: 0;
 }
 
-input[type="checkbox"],
-input[type="radio"] {
-  vertical-align: middle;
-}
-
 .bottom-left {
   bottom: 0;
   left: 0;
   margin: 0 0 40px 10px;
 }
 
-.form {
-  max-width: 220px;
+.cell-size-input,
+.dist-decay-input {
+  width: 52px;
 }
 
+.cell-size,
+.dist-decay,
 .form-label {
   margin-bottom: 6px;
+}
+
+.form {
+  max-width: 220px;
 }
 
 .form-menu {
@@ -46,27 +48,75 @@ input[type="radio"] {
   color: #333;
 }
 
-.form-menu,
+.form-menu {
+  padding: 10px;
+}
+
+.form-input-buttons {
+  margin-top: 10px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  vertical-align: middle;
+}
+
+input[type="number"] {
+  color: #333;
+  font: 14px -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, Helvetica, sans-serif;
+}
+
+input:disabled+label {
+  color: #ccc;
+}
+
+input:invalid+span:after {
+  content: '✖';
+  padding-left: 5px;
+}
+
+input:valid+span:after {
+  content: '✔';
+  padding-left: 5px;
+}
+
+.input-button {
+  font-size: 12px;
+}
+
+.input-button:first-child {
+  margin-right: 5px;
+}
+
 .layers-form-menu {
   padding: 8px;
 }
 
-.layers-toggle {
-  right: 10px;
-  top: 120px;
+.layers-form-menu:first-child {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-.layers-icon {
-  padding: 2px;
+.layers-form-menu:last-child {
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .layers-image {
+  /* https://unpkg.com/browse/leaflet@1.5.1/dist/images/ */
+  background-image: url(../img/layers-2x.png);
+  background-position: 50% 50%;
+  background-repeat: no-repeat;
+  background-size: 22px 22px;
   height: 30px;
   width: 30px;
 }
 
 .layers-menu {
   display: none;
+}
+
+.layers-toggle {
+  right: 10px;
+  top: 120px;
 }
 
 .mapboxgl-popup-content {
@@ -137,4 +187,11 @@ input[type="radio"] {
 
 .v-middle {
   vertical-align: middle;
+}
+
+.zoom-to-control {
+  background-image: url(../img/wi.svg);
+  background-position: 50% 50%;
+  background-repeat: no-repeat;
+  background-size: 20px 20px;
 }

@@ -45,23 +45,23 @@ import { Spinner } from './spin.js';
   var wellsBreaks = [];
   var wellsColors = ['#fef0d9', '#fdcc8a', '#fc8d59', '#e34a33', '#b30000'];
 
-  var nitGridVis = 'visible';
+  var nitGridVis;
   var nitGridBreaks = [];
 
   var canPointGrid;
 
-  var canGridVis = 'visible';
+  var canGridVis;
   var canGridBreaks = [];
 
   var grid;
-  var gridVis = 'visible';
+  var gridVis;
   var gridBreaks = [];
   // var gridColors = ['#0571b0', '#92c5de', '#f7f7f7', '#f4a582', '#ca0020'];
   // var gridColors = ['#2c7bb6', '#abd9e9', '#ffffbf', '#fdae61', '#d7191c'];
   var gridColors = ['#7b3294', '#c2a5cf', '#f7f7f7', '#a6dba0', '#008837'];
 
-  var weight = 2;
-  var cellSize = 6; // !!! cellSize must be >= 6 for each grid hexbin to intersect a canPointGrid point !!!
+  var distDecay; // 2-100
+  var cellSize; // 6-15; cellSize must be >= 6 for each grid hexbin to intersect a canPointGrid point
 
   var regressionEquation;
   var rSquared;
@@ -89,6 +89,22 @@ import { Spinner } from './spin.js';
   };
 
   map.fitBounds(zoomToBounds, zoomToOptions);
+
+  // Declare regression layers for map style switcher
+  // See regressionLayers.forEach() in map.onLoad() for menu creation
+  var regressionLayers = [{
+    label: 'Regression',
+    id: 'residuals',
+    visibility: gridVis
+  }, {
+    label: 'Nitrate Interpolation',
+    id: 'nitconc-grid',
+    visibility: nitGridVis
+  }, {
+    label: 'Cancer Interpolation',
+    id: 'canrate-grid',
+    visibility: canGridVis
+  }];
 
   // Create popup, but don't add it to the map yet
   var popup = new mapboxgl.Popup({
@@ -142,7 +158,6 @@ import { Spinner } from './spin.js';
     var zoomButton = zoomControl.firstElementChild;
     zoomButton.id = 'zoom-to-button';
     zoomButton.title = 'Zoom to WI';
-    zoomButton.innerHTML = '<img width="20" height="20" src="assets/img/wi.svg">';
     zoomButton.addEventListener('click', function () {
       map.fitBounds(zoomToBounds, zoomToOptions);
     });
@@ -155,11 +170,6 @@ import { Spinner } from './spin.js';
     layersImage.id = 'layers-image';
     layersImage.className = 'layers-image';
     var layersImageAnchor = document.createElement('a');
-    var layersImageIcon = document.createElement('img');
-    layersImageIcon.src = 'assets/img/layers.png';
-    layersImageIcon.className = 'layers-icon';
-    layersImageIcon.alt = 'layers icon';
-    layersImageAnchor.appendChild(layersImageIcon);
     layersImage.appendChild(layersImageAnchor);
     layersToggle.appendChild(layersImage);
 
@@ -185,6 +195,7 @@ import { Spinner } from './spin.js';
 
     tractsOverlayToggleInput.addEventListener('change', function (e) {
       map.setLayoutProperty('tracts', 'visibility', e.target.checked ? 'visible' : 'none');
+      map.setLayoutProperty('tracts-line', 'visibility', e.target.checked ? 'visible' : 'none');
       tractsVis = map.getLayoutProperty('tracts', 'visibility');
     });
 
@@ -206,7 +217,36 @@ import { Spinner } from './spin.js';
     });
 
     layersMenu.appendChild(overlayLayersMenu);
+
+    var regressionLayersMenu = document.createElement('div');
+    regressionLayersMenu.id = 'regression-layers-menu';
+    regressionLayersMenu.className = 'layers-form-menu';
+
+    regressionLayers.forEach(function (l) { // Instantiate layersMenu with an input for each regression layer declared at top of script
+      var layerDiv = document.createElement('div'); // Store each input in a div for vertical list display
+      layerDiv.id = l.id + '-input';
+      layerDiv.className = 'toggle';
+      var layerInput = document.createElement('input');
+      layerInput.id = l.id;
+      layerInput.type = 'radio';
+      layerInput.name = 'regression-layer';
+      layerInput.value = l.id;
+      layerInput.disabled = true;
+      layerDiv.appendChild(layerInput);
+
+      var layerLabel = document.createElement('label');
+      layerLabel.for = l.label.toLowerCase();
+      layerLabel.textContent = l.label;
+      layerDiv.appendChild(layerLabel);
+
+      regressionLayersMenu.appendChild(layerDiv);
+    });
+
+    layersMenu.appendChild(regressionLayersMenu);
     layersToggle.appendChild(layersMenu);
+
+    var regressionLayerInputs = regressionLayersMenu.getElementsByTagName('input');
+    console.log(regressionLayerInputs);
 
     layersToggle.addEventListener('mouseover', function (e) {
       layersMenu.style.display = 'block'; // Display layer switcher menu on hover ..
@@ -225,9 +265,164 @@ import { Spinner } from './spin.js';
     title.id = 'title';
     title.className = 'form form-menu title';
     title.innerHTML = '<h1>Nitrate & Cancer in WI</h1>' +
-    '<p>Explore the relationship between well water nitrate concentrations and cancer rates in Wisconsin' +
+    '<p>Explore the relationship between well water nitrate concentration and cancer rates in Wisconsin' +
     '&nbsp;<a href="#about"><i class="fas fa-question-circle small" title="About"></i></a></p>'; // "&nbsp;" = non-breaking space
     form.appendChild(title);
+
+    var formInputs = document.createElement('form');
+    formInputs.id = 'form-inputs';
+    formInputs.className = 'form-menu';
+
+    var distDecayLabelDiv = document.createElement('div');
+    distDecayLabelDiv.id = 'dist-decay-label';
+    distDecayLabelDiv.className = 'form-label';
+
+    var distDecayLabel = document.createElement('label');
+    distDecayLabel.innerHTML = '<b class="v-middle">Distance decay coefficient</b>';
+    distDecayLabelDiv.appendChild(distDecayLabel);
+
+    var distDecayInputDiv = document.createElement('div');
+    distDecayInputDiv.id = 'dist-decay';
+    distDecayInputDiv.className = 'dist-decay';
+
+    var distDecayInput = document.createElement('input');
+    distDecayInput.id = 'dist-decay-input';
+    distDecayInput.className = 'dist-decay-input';
+    distDecayInput.type = 'number';
+    distDecayInput.name = 'dist-decay';
+    distDecayInput.placeholder = '2-100';
+    distDecayInput.min = '2';
+    distDecayInput.max = '100';
+    distDecayInput.required = 'true';
+
+    distDecayInput.addEventListener('change', function () {
+      if (distDecayInput.validity.valid && cellSizeInput.validity.valid) {
+        if (distDecayInput.value !== distDecay) {
+          submitButton.disabled = false;
+        }
+
+        if (distDecayInput.value === distDecay && cellSizeInput.value === cellSize) {
+          submitButton.disabled = true;
+        }
+      }
+    });
+
+    distDecayInputDiv.appendChild(distDecayInput);
+
+    var distDecayValidity = document.createElement('span');
+    distDecayValidity.className = 'validity';
+    distDecayInputDiv.appendChild(distDecayValidity);
+
+    formInputs.appendChild(distDecayLabelDiv);
+    formInputs.appendChild(distDecayInputDiv);
+
+    var cellSizeLabelDiv = document.createElement('div');
+    cellSizeLabelDiv.id = 'cell-size-label';
+    cellSizeLabelDiv.className = 'form-label';
+
+    var cellSizeLabel = document.createElement('label');
+    cellSizeLabel.innerHTML = '<b class="v-middle">Cell size</b>&nbsp;' +
+    '<span class="small v-middle">(KM)</span>';
+    cellSizeLabelDiv.appendChild(cellSizeLabel);
+
+    var cellSizeInputDiv = document.createElement('div');
+    cellSizeInputDiv.id = 'cell-size';
+    cellSizeInputDiv.className = 'cell-size';
+
+    var cellSizeInput = document.createElement('input');
+    cellSizeInput.id = 'cell-size-input';
+    cellSizeInput.className = 'cell-size-input';
+    cellSizeInput.type = 'number';
+    cellSizeInput.name = 'cell-size';
+    cellSizeInput.placeholder = '6-15';
+    cellSizeInput.min = '6';
+    cellSizeInput.max = '15';
+    cellSizeInput.required = 'true';
+
+    cellSizeInput.addEventListener('change', function () {
+      if (cellSizeInput.validity.valid && distDecayInput.validity.valid) {
+        if (cellSizeInput.value !== cellSize) {
+          submitButton.disabled = false;
+        }
+
+        if (cellSizeInput.value === cellSize && distDecayInput.value === distDecay) {
+          submitButton.disabled = true;
+        }
+      }
+    });
+
+    cellSizeInputDiv.appendChild(cellSizeInput);
+
+    var cellSizeValidity = document.createElement('span');
+    cellSizeValidity.className = 'validity';
+    cellSizeInputDiv.appendChild(cellSizeValidity);
+
+    formInputs.appendChild(cellSizeLabelDiv);
+    formInputs.appendChild(cellSizeInputDiv);
+
+    form.appendChild(formInputs);
+
+    var formInputButtonsDiv = document.createElement('div');
+    formInputButtonsDiv.id = 'form-input-buttons';
+    formInputButtonsDiv.className = 'form-input-buttons';
+
+    var submitButton = document.createElement('button');
+    submitButton.id = 'submit-button';
+    submitButton.className = 'input-button';
+    submitButton.type = 'button';
+    submitButton.disabled = true;
+    submitButton.textContent = 'Submit';
+
+    submitButton.addEventListener('click', function () {
+      if (tractsVis === 'visible') {
+        map.setLayoutProperty('tracts', 'visibility', 'none');
+        map.setLayoutProperty('tracts-line', 'visibility', 'none');
+        tractsVis = 'none';
+        tractsOverlayToggleInput.checked = false;
+      }
+
+      if (wellsVis === 'visible') {
+        map.setLayoutProperty('wells', 'visibility', 'none');
+        wellsVis = 'none';
+        wellsOverlayToggleInput.checked = false;
+      }
+
+      distDecay = distDecayInput.value;
+      cellSize = cellSizeInput.value;
+
+      for (let i = 0; i < regressionLayerInputs.length; i++) {
+        regressionLayerInputs[i].disabled = false;
+
+        if (regressionLayerInputs[i].id === 'residuals') {
+          regressionLayerInputs[i].checked = true;
+          // map.setLayoutProperty(regressionLayerInputs[i].id, 'visibility', 'visible');
+          // map.setLayoutProperty(regressionLayerInputs[i].id + '-line', 'visibility', 'visible');
+          // regressionLayerInputs[i].visibility = 'visible';
+        } else {
+          // map.setLayoutProperty(regressionLayerInputs[i].id, 'visibility', 'none');
+          // map.setLayoutProperty(regressionLayerInputs[i].id + '-line', 'visibility', 'none');
+          // regressionLayerInputs[i].visibility = 'none';
+        }
+      }
+
+      submitButton.disabled = true;
+      resetButton.disabled = false;
+    });
+
+    var resetButton = document.createElement('button');
+    resetButton.id = 'reset-button';
+    resetButton.className = 'input-button';
+    resetButton.type = 'button';
+    resetButton.disabled = true;
+    resetButton.textContent = 'Reset';
+
+
+    // TODO: ONLY ENABLE RESET BUTTON AFTER SUBMIT (cellSize and distDecay are numbers / not undefined)
+
+
+    formInputButtonsDiv.appendChild(submitButton);
+    formInputButtonsDiv.appendChild(resetButton);
+    formInputs.appendChild(formInputButtonsDiv);
 
     loadData();
   });
@@ -278,10 +473,10 @@ import { Spinner } from './spin.js';
       // REMEMBER TO CONVERT DECIMAL TO PERCENTAGE INTEGER FOR TRACT/CANCER INTERPOLATION LEGEND LABELS
 
       // // Generate interpolated hexbin grid on well nitrate concentrations
-      // grid = interpolate(wells, 'hex', 'nitconc', weight, cellSize);
+      // grid = interpolate(wells, 'hex', 'nitconc', distDecay, cellSize);
       //
       // // Generate interpolated point grid on tract centroid cancer rates
-      // canPointGrid = interpolate(tractCentroids, 'point', 'canrate', weight, cellSize);
+      // canPointGrid = interpolate(tractCentroids, 'point', 'canrate', distDecay, cellSize);
       //
       // // Merge "canrate" property from canPointGrid into grid as "values" property (array)
       // joinGrid();
@@ -293,16 +488,16 @@ import { Spinner } from './spin.js';
       // addSource('grid', grid);
 
       // // Calculate interpolated nitrate concentrations hexbin grid breakpoints
-      // nitGridBreaks = calcBreaks(grid, 'nitGrid', 'nitconc');
+      // nitGridBreaks = calcBreaks(grid, 'nitconc-grid', 'nitconc');
       //
       // // Map interpolated nitrate concentrations hexbin grid
-      // mapGrid('nitGrid', 'grid', 'nitconc', nitGridVis, nitGridBreaks, wellsColors);
+      // mapGrid('nitconc-grid', 'grid', 'nitconc', nitGridVis, nitGridBreaks, wellsColors);
 
       // // Calculate interpolated cancer rate breakpoints for hexbins
-      // canGridBreaks = calcBreaks(grid, 'canGrid', 'canrate');
+      // canGridBreaks = calcBreaks(grid, 'canrate-grid', 'canrate');
       //
       // // Map interpolated cancer rates hexbin grid
-      // mapGrid('canGrid', 'grid', 'canrate', canGridVis, canGridBreaks, tractsColors);
+      // mapGrid('canrate-grid', 'grid', 'canrate', canGridVis, canGridBreaks, tractsColors);
 
       // // Map cancer rate residuals (observed - predicted) to standard deviation of residuals breakpoints
       // mapGrid('residuals', 'grid', 'residual', gridVis, gridBreaks, gridColors);
@@ -508,11 +703,11 @@ import { Spinner } from './spin.js';
     });
   }
 
-  function interpolate (input, gridType, attr, weight, cellSize) {
+  function interpolate (input, gridType, attr, distDecay, cellSize) {
     var options = {
       gridType: gridType, // 1392 overlapping tractCentroids w/ square gridType, 1383 w/ hex
       property: attr,
-      weight: weight,
+      weight: distDecay,
       units: 'kilometers'
     };
 
@@ -656,7 +851,7 @@ import { Spinner } from './spin.js';
         ],
         'fill-opacity': 1
       }
-    }, firstLabelLayer);
+    }, 'tracts'); // place under tracts, so tracts will render above grid when tracts checkbox checked
 
     map.addLayer({
       id: lineLayerName,
@@ -678,20 +873,20 @@ import { Spinner } from './spin.js';
           // in between, line-width will be linearly interpolated between 0.5 and 1.2 pixels
         ]
       }
-    }, firstLabelLayer);
+    }, 'tracts'); // place under tracts, so tracts will render above grid when tracts checkbox checked
   }
 
-  function mapPoints (layerName) {
-    map.addLayer({
-      id: layerName,
-      type: 'circle',
-      source: layerName,
-      paint: {
-        'circle-radius': 3,
-        'circle-color': '#333',
-        'circle-stroke-width': 0.5,
-        'circle-stroke-color': '#fff'
-      }
-    });
-  }
+  // function mapPoints (layerName) {
+  //   map.addLayer({
+  //     id: layerName,
+  //     type: 'circle',
+  //     source: layerName,
+  //     paint: {
+  //       'circle-radius': 3,
+  //       'circle-color': '#333',
+  //       'circle-stroke-width': 0.5,
+  //       'circle-stroke-color': '#fff'
+  //     }
+  //   });
+  // }
 })();
