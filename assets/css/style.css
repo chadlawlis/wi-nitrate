@@ -16,13 +16,7 @@ body {
   margin: 0 0 40px 10px;
 }
 
-.cell-size-input,
-.dist-decay-input {
-  width: 52px;
-}
-
-.cell-size,
-.dist-decay,
+.form-input,
 .form-label {
   margin-bottom: 6px;
 }
@@ -58,6 +52,7 @@ input[type="radio"] {
 input[type="number"] {
   color: #333;
   font: 14px -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, Helvetica, sans-serif;
+  width: 52px; /* unify input width; varies by default given two-digit max (15) for cellSize, three-digit max (100) for distDecay */
 }
 
 input:disabled+label {

@@ -114,6 +114,20 @@ import { Spinner } from './spin.js';
     colors: canColors
   }];
 
+  // Declare inputs as objects of array
+  var inputs = [{
+    id: 'dist-decay',
+    label: 'Distance decay coefficient',
+    min: '2',
+    max: '100'
+  }, {
+    id: 'cell-size',
+    label: 'Cell size',
+    labelSmall: '(KM)',
+    min: '6',
+    max: '15'
+  }];
+
   mapboxgl.accessToken = 'pk.eyJ1IjoiY2hhZGxhd2xpcyIsImEiOiJlaERjUmxzIn0.P6X84vnEfttg0TZ7RihW1g';
 
   var map = new mapboxgl.Map({
@@ -238,7 +252,8 @@ import { Spinner } from './spin.js';
     var regressionLayersMenu = document.createElement('div');
     regressionLayersMenu.className = 'form-menu regression-layers';
 
-    regressionLayers.forEach(function (l) { // Instantiate layersMenu with an input for each regression layer declared at top of script
+    // Instantiate layersMenu with an input for each regression layer declared at top of script
+    regressionLayers.forEach(function (l) {
       var layerDiv = document.createElement('div'); // Store each input in a div for vertical list display
       layerDiv.className = 'toggle';
       var layerInput = document.createElement('input');
@@ -289,7 +304,6 @@ import { Spinner } from './spin.js';
     form.className = 'bottom-left map-overlay';
 
     var title = document.createElement('div');
-    title.id = 'title';
     title.className = 'form-menu title';
     title.innerHTML = '<h1>Nitrate & Cancer in WI</h1>' +
     '<p>Explore the relationship between well water nitrate concentrations and cancer rates in Wisconsin' +
@@ -297,95 +311,70 @@ import { Spinner } from './spin.js';
     form.appendChild(title);
 
     var formInputs = document.createElement('form');
-    formInputs.id = 'form-inputs';
     formInputs.className = 'form-menu';
 
-    var distDecayLabelDiv = document.createElement('div');
-    distDecayLabelDiv.id = 'dist-decay-label';
-    distDecayLabelDiv.className = 'form-label';
+    // Add number inputs to the form; Each input is an object and an item of "inputs" array declared at top of script
+    inputs.forEach(function (i) {
+      var labelDiv = document.createElement('div');
+      labelDiv.className = 'form-label';
 
-    var distDecayLabel = document.createElement('label');
-    distDecayLabel.innerHTML = '<b class="v-middle">Distance decay coefficient</b>';
-    distDecayLabelDiv.appendChild(distDecayLabel);
-
-    var distDecayInputDiv = document.createElement('div');
-    distDecayInputDiv.id = 'dist-decay';
-    distDecayInputDiv.className = 'dist-decay';
-
-    var distDecayInput = document.createElement('input');
-    distDecayInput.id = 'dist-decay-input';
-    distDecayInput.className = 'dist-decay-input';
-    distDecayInput.type = 'number';
-    distDecayInput.name = 'dist-decay';
-    distDecayInput.placeholder = '2-100';
-    distDecayInput.min = '2';
-    distDecayInput.max = '100';
-    distDecayInput.required = 'true';
-
-    distDecayInput.addEventListener('change', function () {
-      if (distDecayInput.validity.valid && cellSizeInput.validity.valid) {
-        if (parseFloat(distDecayInput.value) !== distDecay) {
-          submitButton.disabled = false;
-        }
-
-        if (parseFloat(distDecayInput.value) === distDecay && parseFloat(cellSizeInput.value) === cellSize) {
-          submitButton.disabled = true;
-        }
+      var label = document.createElement('label');
+      if (i.labelSmall) {
+        label.innerHTML = '<b class="v-middle">' + i.label + '</b>&nbsp;<span class="small v-middle">' + i.labelSmall + '</span>';
+      } else {
+        label.innerHTML = '<b class="v-middle">' + i.label + '</b>';
       }
-    });
+      labelDiv.appendChild(label);
 
-    distDecayInputDiv.appendChild(distDecayInput);
+      var inputDiv = document.createElement('div');
+      inputDiv.className = 'form-input';
 
-    var distDecayValidity = document.createElement('span');
-    distDecayValidity.className = 'validity';
-    distDecayInputDiv.appendChild(distDecayValidity);
+      var input = document.createElement('input');
+      input.id = i.id;
+      input.type = 'number';
+      input.name = i.id;
+      input.placeholder = i.min + '-' + i.max;
+      input.min = i.min;
+      input.max = i.max;
+      input.required = 'true';
 
-    formInputs.appendChild(distDecayLabelDiv);
-    formInputs.appendChild(distDecayInputDiv);
+      if (i.id === 'dist-decay') {
+        input.addEventListener('change', function () {
+          var cellSizeInput = document.getElementById('cell-size');
+          if (input.validity.valid && cellSizeInput.validity.valid) {
+            if (parseFloat(input.value) !== distDecay) {
+              submitButton.disabled = false;
+            }
+          }
 
-    var cellSizeLabelDiv = document.createElement('div');
-    cellSizeLabelDiv.id = 'cell-size-label';
-    cellSizeLabelDiv.className = 'form-label';
+          if (parseFloat(input.value) === distDecay && parseFloat(cellSizeInput.value) === cellSize) {
+            submitButton.disabled = true;
+          }
+        });
+      } else if (i.id === 'cell-size') {
+        input.addEventListener('change', function () {
+          var distDecayInput = document.getElementById('dist-decay');
+          if (input.validity.valid && distDecayInput.validity.valid) {
+            if (parseFloat(input.value) !== cellSize) {
+              submitButton.disabled = false;
+            }
+          }
 
-    var cellSizeLabel = document.createElement('label');
-    cellSizeLabel.innerHTML = '<b class="v-middle">Cell size</b>&nbsp;' +
-    '<span class="small v-middle">(KM)</span>';
-    cellSizeLabelDiv.appendChild(cellSizeLabel);
-
-    var cellSizeInputDiv = document.createElement('div');
-    cellSizeInputDiv.id = 'cell-size';
-    cellSizeInputDiv.className = 'cell-size';
-
-    var cellSizeInput = document.createElement('input');
-    cellSizeInput.id = 'cell-size-input';
-    cellSizeInput.className = 'cell-size-input';
-    cellSizeInput.type = 'number';
-    cellSizeInput.name = 'cell-size';
-    cellSizeInput.placeholder = '6-15';
-    cellSizeInput.min = '6';
-    cellSizeInput.max = '15';
-    cellSizeInput.required = 'true';
-
-    cellSizeInput.addEventListener('change', function () {
-      if (cellSizeInput.validity.valid && distDecayInput.validity.valid) {
-        if (parseFloat(cellSizeInput.value) !== cellSize) {
-          submitButton.disabled = false;
-        }
-
-        if (parseFloat(cellSizeInput.value) === cellSize && parseFloat(distDecayInput.value) === distDecay) {
-          submitButton.disabled = true;
-        }
+          if (parseFloat(input.value) === cellSize && parseFloat(distDecayInput.value) === distDecay) {
+            submitButton.disabled = true;
+          }
+        });
       }
+
+      inputDiv.appendChild(input);
+
+      var inputValidity = document.createElement('span');
+      inputValidity.className = 'validity';
+      inputDiv.appendChild(inputValidity);
+
+      formInputs.appendChild(labelDiv);
+      formInputs.appendChild(inputDiv);
     });
-
-    cellSizeInputDiv.appendChild(cellSizeInput);
-
-    var cellSizeValidity = document.createElement('span');
-    cellSizeValidity.className = 'validity';
-    cellSizeInputDiv.appendChild(cellSizeValidity);
-
-    formInputs.appendChild(cellSizeLabelDiv);
-    formInputs.appendChild(cellSizeInputDiv);
 
     form.appendChild(formInputs);
 
@@ -425,8 +414,14 @@ import { Spinner } from './spin.js';
         }
       });
 
-      distDecay = parseFloat(distDecayInput.value);
-      cellSize = parseFloat(cellSizeInput.value);
+      inputs.forEach(function (i) {
+        var input = document.getElementById(i.id);
+        if (i.id === 'dist-decay') {
+          distDecay = parseFloat(input.value);
+        } else if (i.id === 'cell-size') {
+          cellSize = parseFloat(input.value);
+        }
+      });
 
       calculate();
 
@@ -469,8 +464,10 @@ import { Spinner } from './spin.js';
       distDecay = undefined;
       cellSize = undefined;
 
-      distDecayInput.value = '';
-      cellSizeInput.value = '';
+      inputs.forEach(function (i) {
+        var input = document.getElementById(i.id);
+        input.value = '';
+      });
 
       resetButton.disabled = true;
       submitButton.disabled = true;
