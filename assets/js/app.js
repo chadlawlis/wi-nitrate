@@ -40,8 +40,7 @@ import { Spinner } from './spin.js';
     distDecay, // 2-100
     cellSize, // 6-15; cellSize must be >= 6 for each grid hexbin to intersect a canPointGrid point
     regressionEquation,
-    rSquared,
-    sampleLegend;
+    rSquared;
 
   var canColors = ['#eff3ff', '#bdd7e7', '#6baed6', '#3182bd', '#08519c']; // blue
   // var canColors = ['#f2f0f7', '#cbc9e2', '#9e9ac8', '#756bb1', '#54278f']; // purple
@@ -55,6 +54,8 @@ import { Spinner } from './spin.js';
 
   // var resColors = ['#d73027', '#fc8d59', '#fee090', '#ffffbf', '#e0f3f8', '#91bfdb', '#4575b4'] // red/white/blue
   // var resColors = ['#762a83', '#af8dc3', '#e7d4e8', '#f7f7f7', '#d9f0d3', '#7fbf7b', '#1b7837']; // purple/white/green
+
+  var sampleLegend = document.getElementById('sample-legend');
 
   // Declare sample data layers as objects of array
   var sampleLayers = [{
@@ -71,7 +72,8 @@ import { Spinner } from './spin.js';
     unitAlias: 'Percent of population',
     breaks: [],
     colors: canColors,
-    type: 'fill'
+    type: 'fill',
+    legendDisplay: 'block'
   }, {
     label: 'Test Wells',
     id: 'wells',
@@ -86,7 +88,8 @@ import { Spinner } from './spin.js';
     unitAlias: 'Parts-per-million',
     breaks: [],
     colors: nitColors,
-    type: 'circle'
+    type: 'circle',
+    legendDisplay: 'block'
   }];
 
   // Declare regression layers as objects of array
@@ -99,9 +102,11 @@ import { Spinner } from './spin.js';
     attr: 'residual',
     attrAlias: 'Residual',
     unit: '',
-    unitAlias: 'Observed - predicted',
+    unitAlias: 'Standard deviation',
     breaks: [],
+    breaksStanDev: [-2, -1, 1, 2],
     colors: resColors,
+    type: 'hex',
     legendDisplay: 'block'
   }, {
     label: 'Nitrate Interpolation',
@@ -115,6 +120,7 @@ import { Spinner } from './spin.js';
     unitAlias: 'Parts-per-million',
     breaks: [],
     colors: nitColors,
+    type: 'hex',
     legendDisplay: 'none'
   }, {
     label: 'Cancer Interpolation',
@@ -128,6 +134,7 @@ import { Spinner } from './spin.js';
     unitAlias: 'Percent of population',
     breaks: [],
     colors: canColors,
+    type: 'hex',
     legendDisplay: 'none'
   }];
 
@@ -290,14 +297,20 @@ import { Spinner } from './spin.js';
         var layerId = e.target.id;
 
         regressionLayers.forEach(function (l) {
+          var legend = document.getElementById(l.id + '-legend');
+
           if (layerId === l.id) {
             map.setLayoutProperty(l.id, 'visibility', 'visible');
             map.setLayoutProperty(l.id + '-line', 'visibility', 'visible');
             l.visibility = 'visible';
+
+            legend.style.display = 'block';
           } else {
             map.setLayoutProperty(l.id, 'visibility', 'none');
             map.setLayoutProperty(l.id + '-line', 'visibility', 'none');
             l.visibility = 'none';
+
+            legend.style.display = 'none';
           }
         });
       });
@@ -440,6 +453,9 @@ import { Spinner } from './spin.js';
         }
       });
 
+      console.log('distDecay:', distDecay);
+      console.log('cellSize:', cellSize);
+
       calculate();
 
       sampleLegend.style.display = 'none';
@@ -463,6 +479,9 @@ import { Spinner } from './spin.js';
         var input = document.getElementById(l.id);
         input.disabled = true;
         input.checked = false;
+
+        var legend = document.getElementById(l.id + '-legend');
+        legend.style.display = 'none';
       });
 
       map.removeSource('grid');
@@ -497,9 +516,6 @@ import { Spinner } from './spin.js';
     formInputButtonsDiv.appendChild(submitButton);
     formInputButtonsDiv.appendChild(resetButton);
     formInputs.appendChild(formInputButtonsDiv);
-
-    sampleLegend = document.getElementById('sample-legend');
-    sampleLegend.className = 'bottom-right legend map-overlay';
 
     loadData();
   });
@@ -539,8 +555,8 @@ import { Spinner } from './spin.js';
         addSource(l.sourceName, l.source);
         l.breaks = calcBreaks(l.source, l.id, l.attr);
         mapSampleLayers(l.id, l.sourceName, l.type, l.attr, l.visibility, l.breaks, l.colors);
-        addPopups(l.id, l.uid, l.uidAlias, l.attr, l.attrAlias, l.unit);
-        createSampleLegend(l.id, l.attrAlias, l.unit, l.unitAlias, l.type, l.colors, l.breaks);
+        addSampleLayerPopups(l.id, l.uid, l.uidAlias, l.attr, l.attrAlias, l.unit);
+        createLegend(l.id, l.attrAlias, l.unit, l.unitAlias, l.type, l.colors, l.breaks, l.legendDisplay);
       });
 
       // Stop spinner once all page load functions have been called
@@ -677,7 +693,7 @@ import { Spinner } from './spin.js';
     }
   }
 
-  function addPopups (layerName, titleAttr, titleAttrAlias, attr, attrAlias, unit) {
+  function addSampleLayerPopups (layerName, titleAttr, titleAttrAlias, attr, attrAlias, unit) {
     map.on('mousemove', layerName, function (e) {
       // Change cursor to pointer on mouseover
       map.getCanvas().style.cursor = 'pointer';
@@ -705,7 +721,21 @@ import { Spinner } from './spin.js';
     });
   }
 
-  function createSampleLegend (layerName, attrAlias, unit, unitAlias, type, colors, breaks) {
+  function createLegend (layerName, attrAlias, unit, unitAlias, type, colors, breaks, legendDisplay) {
+    var legendDiv;
+
+    // Clear existing content of regression legends (if populated from previous submit)
+    if (type === 'hex') {
+      legendDiv = document.getElementById(layerName + '-legend');
+      while (legendDiv.firstChild) {
+        legendDiv.removeChild(legendDiv.firstChild);
+      }
+    } else {
+      legendDiv = sampleLegend;
+    }
+
+    legendDiv.className = 'bottom-right legend map-overlay';
+
     var layerDiv = document.createElement('div');
     layerDiv.className = 'form-menu title';
 
@@ -716,12 +746,18 @@ import { Spinner } from './spin.js';
     label.innerHTML = attrAlias;
     var subtitle = document.createElement('p');
     subtitle.className = 'small subtitle';
-    subtitle.innerHTML = unitAlias + ' (' + unit + ')';
+
+    if (unit !== '') {
+      subtitle.innerHTML = unitAlias + ' (' + unit + ')';
+    } else {
+      subtitle.innerHTML = unitAlias;
+    }
+
     labelDiv.appendChild(label);
     labelDiv.appendChild(subtitle);
     layerDiv.appendChild(labelDiv);
 
-    if (layerName === 'tracts') {
+    if (layerName === 'tracts' || layerName === 'canrate-grid') {
       breaks = breaks.map(x => Math.round(x * 100));
     }
 
@@ -742,11 +778,19 @@ import { Spinner } from './spin.js';
       colorSpan.style.backgroundColor = colors[i];
 
       if (i === 0) {
-        breakSpan.textContent = '< ' + breaks[i];
+        if (layerName === 'residuals') {
+          breakSpan.innerHTML = '< ' + breaks[i] + ' <span class="small">&rarr; Overprediction </span>';
+        } else {
+          breakSpan.textContent = '< ' + breaks[i];
+        }
       } else if (i === breaks.length) {
-        breakSpan.textContent = '> ' + breaks[i - 1];
+        if (layerName === 'residuals') {
+          breakSpan.innerHTML = '> ' + breaks[i - 1] + ' <span class="small">&rarr; Underprediction </span>';
+        } else {
+          breakSpan.textContent = '> ' + breaks[i - 1];
+        }
       } else {
-        breakSpan.textContent = breaks[i - 1] + ' - ' + breaks[i];
+        breakSpan.innerHTML = breaks[i - 1] + ' &ndash; ' + breaks[i];
       }
 
       breakDiv.appendChild(colorSpan);
@@ -754,7 +798,8 @@ import { Spinner } from './spin.js';
       layerDiv.appendChild(breakDiv);
     }
 
-    sampleLegend.appendChild(layerDiv);
+    legendDiv.appendChild(layerDiv);
+    legendDiv.style.display = legendDisplay;
   }
 
   function calculate () {
@@ -778,7 +823,6 @@ import { Spinner } from './spin.js';
     // along with residuals and standard deviation of residuals breaks for symbolizing
     calcRegression();
 
-    console.log(grid);
     addSource('grid', grid);
 
     regressionLayers.forEach(function (l) {
@@ -788,8 +832,14 @@ import { Spinner } from './spin.js';
         l.breaks = calcBreaks(l.source, l.id, l.attr);
       }
 
-      mapGrid(l.id, l.sourceName, l.attr, l.visibility, l.breaks, l.colors);
-      addGridPopups(l.id, l.attr, l.attrAlias, l.unit);
+      mapRegressionLayers(l.id, l.sourceName, l.attr, l.visibility, l.breaks, l.colors);
+      addRegressionLayerPopups(l.id, l.attr, l.attrAlias, l.unit);
+
+      if (l.id === 'residuals') {
+        createLegend(l.id, l.attrAlias, l.unit, l.unitAlias, l.type, l.colors, l.breaksStanDev, l.legendDisplay);
+      } else {
+        createLegend(l.id, l.attrAlias, l.unit, l.unitAlias, l.type, l.colors, l.breaks, l.legendDisplay);
+      }
     });
   }
 
@@ -871,7 +921,7 @@ import { Spinner } from './spin.js';
 
     // Calculate regression to find slope and y-intercept of regression line
     var regression = ss.linearRegression(regressionCoords);
-    console.log(regression);
+    console.log('regression slope, yIntercept:', regression);
 
     var slope = regression.m;
     var yIntercept = regression.b;
@@ -900,21 +950,24 @@ import { Spinner } from './spin.js';
 
     var stanDev = ss.sampleStandardDeviation(residuals);
 
-    // value < breaks[0] (< -2 stanDev)
-    // breaks[0] <= value <= breaks[1] (-2 stanDev <= value <= -1 standDev)
-    // breaks[1] <= value <= breaks[2] (-1 stanDev <= value <= 1 standDev)
-    // breaks[2] <= value <= breaks[3] (1 stanDev <= value <= 2 standDev)
-    // value > breaks[3] (value > 2 standDev)
     regressionLayers.forEach(function (l) {
       if (l.id === 'residuals') {
-        l.breaks = [parseFloat((-2 * stanDev).toFixed(4)), parseFloat((-1 * stanDev).toFixed(4)), parseFloat(stanDev.toFixed(4)), parseFloat((2 * stanDev).toFixed(4))];
-        // l.breaks = [parseFloat((-1.5 * stanDev).toFixed(4)), parseFloat((-1 * stanDev).toFixed(4)), parseFloat((-0.5 * stanDev).toFixed(4)), parseFloat((0.5 * stanDev).toFixed(4)), parseFloat(stanDev.toFixed(4)), parseFloat((1.5 * stanDev).toFixed(4))];
+        // Calculate residuals breaks as multiples of standard deviation of residuals using breaksStanDev property of residuals layer object
+        // Assuming breaksStanDev of [-2, -1, 1, 2]:
+        // value < breaks[0] (< -2 stanDev)
+        // breaks[0] <= value <= breaks[1] (-2 stanDev <= value <= -1 standDev)
+        // breaks[1] <= value <= breaks[2] (-1 stanDev <= value <= 1 standDev)
+        // breaks[2] <= value <= breaks[3] (1 stanDev <= value <= 2 standDev)
+        // value > breaks[3] (value > 2 standDev)
+        for (let i = 0; i < l.breaksStanDev.length; i++) {
+          l.breaks[i] = parseFloat((l.breaksStanDev[i] * stanDev).toFixed(4));
+        }
         console.log(l.id + ' breaks:', l.breaks);
       }
     });
   }
 
-  function mapGrid (layerName, sourceName, attr, visibility, breaks, colors) {
+  function mapRegressionLayers (layerName, sourceName, attr, visibility, breaks, colors) {
     var lineLayerName = layerName + '-line';
 
     if (map.getLayer(layerName)) {
@@ -969,7 +1022,7 @@ import { Spinner } from './spin.js';
     }, 'tracts'); // place under tracts, so tracts will render above grid if decide to enable tracts checkbox after submit
   }
 
-  function addGridPopups (layerName, attr, attrAlias, unit) {
+  function addRegressionLayerPopups (layerName, attr, attrAlias, unit) {
     map.on('mousemove', layerName, function (e) {
       // Change cursor to pointer on mouseover
       map.getCanvas().style.cursor = 'pointer';
@@ -1003,14 +1056,4 @@ import { Spinner } from './spin.js';
       popup.remove();
     });
   }
-
-  // function createRegressionLegend (layerName) {
-  //   // USE "display" object property to set legend display
-  //
-  //   var legendDiv = document.getElementById(layerName + '-legend');
-  //   // Clear existing content of legend (from previous submit)
-  //   while (legendDiv.firstChild) {
-  //     legendDiv.removeChild(legendDiv.firstChild);
-  //   }
-  // }
 })();
