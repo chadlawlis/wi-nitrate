@@ -30,8 +30,18 @@ import { Spinner } from './spin.js';
   // Animate spinner on page load
   spinner.spin(target);
 
-  var mapLayers;
-  var firstLabelLayer;
+  var mapLayers,
+    firstLabelLayer,
+    tracts,
+    tractCentroids,
+    wells,
+    canPointGrid,
+    grid,
+    distDecay, // 2-100
+    cellSize, // 6-15; cellSize must be >= 6 for each grid hexbin to intersect a canPointGrid point
+    regressionEquation,
+    rSquared,
+    sampleLegend;
 
   var canColors = ['#eff3ff', '#bdd7e7', '#6baed6', '#3182bd', '#08519c']; // blue
   // var canColors = ['#f2f0f7', '#cbc9e2', '#9e9ac8', '#756bb1', '#54278f']; // purple
@@ -46,17 +56,6 @@ import { Spinner } from './spin.js';
   // var resColors = ['#d73027', '#fc8d59', '#fee090', '#ffffbf', '#e0f3f8', '#91bfdb', '#4575b4'] // red/white/blue
   // var resColors = ['#762a83', '#af8dc3', '#e7d4e8', '#f7f7f7', '#d9f0d3', '#7fbf7b', '#1b7837']; // purple/white/green
 
-  var tracts,
-    tractCentroids,
-    wells,
-    canPointGrid,
-    grid,
-    regressionEquation,
-    rSquared;
-
-  var distDecay; // 2-100
-  var cellSize; // 6-15; cellSize must be >= 6 for each grid hexbin to intersect a canPointGrid point
-
   // Declare sample data layers as objects of array
   var sampleLayers = [{
     label: 'Census Tracts',
@@ -68,8 +67,11 @@ import { Spinner } from './spin.js';
     uidAlias: 'Tract #',
     attr: 'canrate',
     attrAlias: 'Cancer Rate',
+    unit: '%',
+    unitAlias: 'Percent of population',
     breaks: [],
-    colors: canColors
+    colors: canColors,
+    type: 'fill'
   }, {
     label: 'Test Wells',
     id: 'wells',
@@ -80,8 +82,11 @@ import { Spinner } from './spin.js';
     uidAlias: 'Well #',
     attr: 'nitconc',
     attrAlias: 'Nitrate Concentration',
+    unit: 'ppm',
+    unitAlias: 'Parts-per-million',
     breaks: [],
-    colors: nitColors
+    colors: nitColors,
+    type: 'circle'
   }];
 
   // Declare regression layers as objects of array
@@ -93,8 +98,11 @@ import { Spinner } from './spin.js';
     visibility: 'visible',
     attr: 'residual',
     attrAlias: 'Residual',
+    unit: '',
+    unitAlias: 'Observed - predicted',
     breaks: [],
-    colors: resColors
+    colors: resColors,
+    legendDisplay: 'block'
   }, {
     label: 'Nitrate Interpolation',
     id: 'nitconc-grid',
@@ -103,8 +111,11 @@ import { Spinner } from './spin.js';
     visibility: 'none',
     attr: 'nitconc',
     attrAlias: 'Nitrate Concentration',
+    unit: 'ppm',
+    unitAlias: 'Parts-per-million',
     breaks: [],
-    colors: nitColors
+    colors: nitColors,
+    legendDisplay: 'none'
   }, {
     label: 'Cancer Interpolation',
     id: 'canrate-grid',
@@ -113,8 +124,11 @@ import { Spinner } from './spin.js';
     visibility: 'none',
     attr: 'canrate',
     attrAlias: 'Cancer Rate',
+    unit: '%',
+    unitAlias: 'Percent of population',
     breaks: [],
-    colors: canColors
+    colors: canColors,
+    legendDisplay: 'none'
   }];
 
   // Declare inputs as objects of array
@@ -126,7 +140,7 @@ import { Spinner } from './spin.js';
   }, {
     id: 'cell-size',
     label: 'Cell size',
-    labelSmall: '(KM)',
+    labelSmall: '(km)',
     min: '6',
     max: '15'
   }];
@@ -304,12 +318,12 @@ import { Spinner } from './spin.js';
     });
 
     var form = document.getElementById('form');
-    form.className = 'bottom-left map-overlay';
+    form.className = 'bottom-left form map-overlay';
 
     var title = document.createElement('div');
     title.className = 'form-menu title';
     title.innerHTML = '<h1>Nitrate & Cancer in WI</h1>' +
-    '<p>Explore the relationship between well water nitrate concentrations and cancer rates in Wisconsin' +
+    '<p>Explore the relationship between<br>well water nitrate concentrations<br>and cancer rates in Wisconsin' +
     '&nbsp;<a href="#about"><i class="fas fa-question-circle small" title="About"></i></a></p>'; // "&nbsp;" = non-breaking space
     form.appendChild(title);
 
@@ -323,9 +337,9 @@ import { Spinner } from './spin.js';
 
       var label = document.createElement('label');
       if (i.labelSmall) {
-        label.innerHTML = '<b class="v-middle">' + i.label + '</b>&nbsp;<span class="small v-middle">' + i.labelSmall + '</span>';
+        label.innerHTML = '<span class="v-middle">' + i.label + '</span>&nbsp;<span class="small v-middle">' + i.labelSmall + '</span>';
       } else {
-        label.innerHTML = '<b class="v-middle">' + i.label + '</b>';
+        label.innerHTML = i.label;
       }
       labelDiv.appendChild(label);
 
@@ -428,6 +442,8 @@ import { Spinner } from './spin.js';
 
       calculate();
 
+      sampleLegend.style.display = 'none';
+
       submitButton.disabled = true;
       resetButton.disabled = false;
     });
@@ -472,6 +488,8 @@ import { Spinner } from './spin.js';
         input.value = '';
       });
 
+      sampleLegend.style.display = 'block';
+
       resetButton.disabled = true;
       submitButton.disabled = true;
     });
@@ -479,6 +497,9 @@ import { Spinner } from './spin.js';
     formInputButtonsDiv.appendChild(submitButton);
     formInputButtonsDiv.appendChild(resetButton);
     formInputs.appendChild(formInputButtonsDiv);
+
+    sampleLegend = document.getElementById('sample-legend');
+    sampleLegend.className = 'bottom-right legend map-overlay';
 
     loadData();
   });
@@ -517,13 +538,10 @@ import { Spinner } from './spin.js';
       sampleLayers.forEach(function (l) {
         addSource(l.sourceName, l.source);
         l.breaks = calcBreaks(l.source, l.id, l.attr);
-        mapSampleLayers(l.id, l.sourceName, l.attr, l.visibility, l.breaks, l.colors);
-        addPopups(l.id, l.uid, l.uidAlias, l.attr, l.attrAlias);
+        mapSampleLayers(l.id, l.sourceName, l.type, l.attr, l.visibility, l.breaks, l.colors);
+        addPopups(l.id, l.uid, l.uidAlias, l.attr, l.attrAlias, l.unit);
+        createSampleLegend(l.id, l.attrAlias, l.unit, l.unitAlias, l.type, l.colors, l.breaks);
       });
-
-      // TODO
-      // Create legend
-      // REMEMBER TO CONVERT DECIMAL TO PERCENTAGE INTEGER FOR TRACT/CANCER INTERPOLATION LEGEND LABELS
 
       // Stop spinner once all page load functions have been called
       spinner.stop();
@@ -569,13 +587,13 @@ import { Spinner } from './spin.js';
     return breaks;
   }
 
-  function mapSampleLayers (layerName, sourceName, attr, visibility, breaks, colors) {
-    if (layerName === 'tracts') {
+  function mapSampleLayers (layerName, sourceName, type, attr, visibility, breaks, colors) {
+    if (type === 'fill') {
       var lineLayerName = layerName + '-line';
 
       map.addLayer({
         id: layerName,
-        type: 'fill',
+        type: type,
         source: sourceName,
         layout: {
           visibility: visibility
@@ -615,10 +633,10 @@ import { Spinner } from './spin.js';
           ]
         }
       }, firstLabelLayer);
-    } else if (layerName === 'wells') {
+    } else if (type === 'circle') {
       map.addLayer({
         id: layerName,
-        type: 'circle',
+        type: type,
         source: layerName,
         layout: {
           visibility: visibility
@@ -659,7 +677,7 @@ import { Spinner } from './spin.js';
     }
   }
 
-  function addPopups (layerName, titleAttr, titleAttrAlias, attr, attrAlias) {
+  function addPopups (layerName, titleAttr, titleAttrAlias, attr, attrAlias, unit) {
     map.on('mousemove', layerName, function (e) {
       // Change cursor to pointer on mouseover
       map.getCanvas().style.cursor = 'pointer';
@@ -667,13 +685,12 @@ import { Spinner } from './spin.js';
       var popupContent;
       var props = e.features[0].properties;
 
-      // TODO: ADD LOGIC FOR NITRATE INTERPOLATION, CANCER INTERPOLATION, AND REGRESSION
       if (layerName === 'tracts') {
         popupContent = '<div class="popup-menu"><p><b>' + titleAttrAlias + props[titleAttr] + '</b></p></div><hr>' +
-        '<div class="popup-menu"><p><b>' + attrAlias + '</b></p><p>' + Math.round(props[attr] * 100) + '%</p></div>';
-      } else if (layerName === 'wells') {
+        '<div class="popup-menu"><p><b>' + attrAlias + '</b></p><p>' + Math.round(props[attr] * 100) + unit + '</p></div>';
+      } else {
         popupContent = '<div class="popup-menu"><p><b>' + titleAttrAlias + props[titleAttr] + '</b></p></div><hr>' +
-        '<div class="popup-menu"><p><b>' + attrAlias + '</b></p><p>' + props[attr] + ' ppm</p></div>';
+        '<div class="popup-menu"><p><b>' + attrAlias + '</b></p><p>' + props[attr] + ' ' + unit + '</p></div>';
       }
 
       popup.setLngLat(e.lngLat)
@@ -686,6 +703,58 @@ import { Spinner } from './spin.js';
       map.getCanvas().style.cursor = '';
       popup.remove();
     });
+  }
+
+  function createSampleLegend (layerName, attrAlias, unit, unitAlias, type, colors, breaks) {
+    var layerDiv = document.createElement('div');
+    layerDiv.className = 'form-menu title';
+
+    var labelDiv = document.createElement('div');
+    labelDiv.className = 'form-label';
+
+    var label = document.createElement('label');
+    label.innerHTML = attrAlias;
+    var subtitle = document.createElement('p');
+    subtitle.className = 'small subtitle';
+    subtitle.innerHTML = unitAlias + ' (' + unit + ')';
+    labelDiv.appendChild(label);
+    labelDiv.appendChild(subtitle);
+    layerDiv.appendChild(labelDiv);
+
+    if (layerName === 'tracts') {
+      breaks = breaks.map(x => Math.round(x * 100));
+    }
+
+    for (let i = 0; i < breaks.length + 1; i++) {
+      var breakDiv = document.createElement('div');
+      breakDiv.className = 'legend-break';
+
+      var colorSpan = document.createElement('span');
+      var breakSpan = document.createElement('span');
+      breakSpan.className = 'v-middle';
+
+      if (type === 'circle') {
+        colorSpan.className = 'legend-shape circle v-middle';
+      } else {
+        colorSpan.className = 'legend-shape fill v-middle';
+      }
+
+      colorSpan.style.backgroundColor = colors[i];
+
+      if (i === 0) {
+        breakSpan.textContent = '< ' + breaks[i];
+      } else if (i === breaks.length) {
+        breakSpan.textContent = '> ' + breaks[i - 1];
+      } else {
+        breakSpan.textContent = breaks[i - 1] + ' - ' + breaks[i];
+      }
+
+      breakDiv.appendChild(colorSpan);
+      breakDiv.appendChild(breakSpan);
+      layerDiv.appendChild(breakDiv);
+    }
+
+    sampleLegend.appendChild(layerDiv);
   }
 
   function calculate () {
@@ -720,7 +789,7 @@ import { Spinner } from './spin.js';
       }
 
       mapGrid(l.id, l.sourceName, l.attr, l.visibility, l.breaks, l.colors);
-      addGridPopups(l.id, l.attr, l.attrAlias);
+      addGridPopups(l.id, l.attr, l.attrAlias, l.unit);
     });
   }
 
@@ -900,7 +969,7 @@ import { Spinner } from './spin.js';
     }, 'tracts'); // place under tracts, so tracts will render above grid if decide to enable tracts checkbox after submit
   }
 
-  function addGridPopups (layerName, attr, attrAlias) {
+  function addGridPopups (layerName, attr, attrAlias, unit) {
     map.on('mousemove', layerName, function (e) {
       // Change cursor to pointer on mouseover
       map.getCanvas().style.cursor = 'pointer';
@@ -909,18 +978,18 @@ import { Spinner } from './spin.js';
       var props = e.features[0].properties;
 
       if (layerName === 'residuals') {
-        popupContent = '<div class="popup-menu"><p><b>' + attrAlias + '</b></p><p class="small">Observed - Predicted</p>' +
-        '<p>' + props[attr] + '</p></div><hr>' +
-        '<div class="popup-menu"><p><b>Cancer Rate</b></p><p class="small">Observed</p>' +
-        '<p>' + props.canrate + ' &rarr; ' + (props.canrate * 100).toFixed(2) + '%</p>' +
-        '<p><b>Cancer Rate</b></p><p class="small">Predicted</p>' +
-        '<p>' + props.canrate_predicted + ' &rarr; ' + (props.canrate_predicted * 100).toFixed(2) + '%</p></div>';
+        popupContent = '<div class="popup-menu"><p><b>' + attrAlias + '</b></p><p class="small subtitle">Observed - Predicted</p>' +
+        '<p>' + props[attr].toFixed(4) + '</p></div><hr>' +
+        '<div class="popup-menu"><p><b>Cancer Rate</b></p><p class="small subtitle">Observed</p>' +
+        '<p>' + props.canrate.toFixed(4) + ' &rarr; ' + (props.canrate * 100).toFixed(2) + '%</p>' +
+        '<p><b>Cancer Rate</b></p><p class="small subtitle">Predicted</p>' +
+        '<p>' + props.canrate_predicted.toFixed(4) + ' &rarr; ' + (props.canrate_predicted * 100).toFixed(2) + '%</p></div>';
       } else if (layerName === 'nitconc-grid') {
         popupContent = '<div class="popup-menu"><p><b>' + attrAlias + '</b></p>' +
-        '<p>' + props[attr].toFixed(2) + ' ppm</p></div>';
+        '<p>' + props[attr].toFixed(2) + ' ' + unit + '</p></div>';
       } else if (layerName === 'canrate-grid') {
         popupContent = '<div class="popup-menu"><p><b>' + attrAlias + '</b></p>' +
-        '<p>' + (props[attr] * 100).toFixed(2) + '%</p></div>';
+        '<p>' + (props[attr] * 100).toFixed(2) + unit + '</p></div>';
       }
 
       popup.setLngLat(e.lngLat)
@@ -934,4 +1003,14 @@ import { Spinner } from './spin.js';
       popup.remove();
     });
   }
+
+  // function createRegressionLegend (layerName) {
+  //   // USE "display" object property to set legend display
+  //
+  //   var legendDiv = document.getElementById(layerName + '-legend');
+  //   // Clear existing content of legend (from previous submit)
+  //   while (legendDiv.firstChild) {
+  //     legendDiv.removeChild(legendDiv.firstChild);
+  //   }
+  // }
 })();
