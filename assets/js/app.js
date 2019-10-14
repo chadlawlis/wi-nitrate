@@ -92,6 +92,7 @@ import { Spinner } from './spin.js';
     sourceName: 'grid',
     visibility: 'visible',
     attr: 'residual',
+    attrAlias: 'Residual',
     breaks: [],
     colors: resColors
   }, {
@@ -101,6 +102,7 @@ import { Spinner } from './spin.js';
     sourceName: 'grid',
     visibility: 'none',
     attr: 'nitconc',
+    attrAlias: 'Nitrate Concentration',
     breaks: [],
     colors: nitColors
   }, {
@@ -110,6 +112,7 @@ import { Spinner } from './spin.js';
     sourceName: 'grid',
     visibility: 'none',
     attr: 'canrate',
+    attrAlias: 'Cancer Rate',
     breaks: [],
     colors: canColors
   }];
@@ -706,7 +709,7 @@ import { Spinner } from './spin.js';
     // along with residuals and standard deviation of residuals breaks for symbolizing
     calcRegression();
 
-    console.log('grid:', grid);
+    console.log(grid);
     addSource('grid', grid);
 
     regressionLayers.forEach(function (l) {
@@ -717,11 +720,8 @@ import { Spinner } from './spin.js';
       }
 
       mapGrid(l.id, l.sourceName, l.attr, l.visibility, l.breaks, l.colors);
+      addGridPopups(l.id, l.attr, l.attrAlias);
     });
-
-    // TODO: INCLUDE LOGIC FOR nitconc-grid + canrate-grid (ADD ATTRIBUTES/ALIASES TO OBJECTS?)
-    // BUILD LOGIC INTO addPopups FUNCTION ?
-    addGridPopups();
   }
 
   function interpolate (input, gridType, attr, distDecay, cellSize) {
@@ -900,26 +900,35 @@ import { Spinner } from './spin.js';
     }, 'tracts'); // place under tracts, so tracts will render above grid if decide to enable tracts checkbox after submit
   }
 
-  function addGridPopups () {
-    map.on('mousemove', 'residuals', function (e) {
+  function addGridPopups (layerName, attr, attrAlias) {
+    map.on('mousemove', layerName, function (e) {
       // Change cursor to pointer on mouseover
       map.getCanvas().style.cursor = 'pointer';
 
       var popupContent;
       var props = e.features[0].properties;
 
-      popupContent = '<div class="popup-menu"><p><b>nitconc:</b> ' + props.nitconc + '</p>' +
-      '<p><b>values:</b> ' + props.values + '</p>' +
-      '<p><b>canrate:</b> ' + props.canrate + '</p>' +
-      '<p><b>canrate_predicted:</b> ' + props.canrate_predicted + '</p>' +
-      '<p><b>residual:</b> ' + props.residual + '</p></div>';
+      if (layerName === 'residuals') {
+        popupContent = '<div class="popup-menu"><p><b>' + attrAlias + '</b></p><p class="small">Observed - Predicted</p>' +
+        '<p>' + props[attr] + '</p></div><hr>' +
+        '<div class="popup-menu"><p><b>Cancer Rate</b></p><p class="small">Observed</p>' +
+        '<p>' + props.canrate + ' &rarr; ' + (props.canrate * 100).toFixed(2) + '%</p>' +
+        '<p><b>Cancer Rate</b></p><p class="small">Predicted</p>' +
+        '<p>' + props.canrate_predicted + ' &rarr; ' + (props.canrate_predicted * 100).toFixed(2) + '%</p></div>';
+      } else if (layerName === 'nitconc-grid') {
+        popupContent = '<div class="popup-menu"><p><b>' + attrAlias + '</b></p>' +
+        '<p>' + props[attr].toFixed(2) + ' ppm</p></div>';
+      } else if (layerName === 'canrate-grid') {
+        popupContent = '<div class="popup-menu"><p><b>' + attrAlias + '</b></p>' +
+        '<p>' + (props[attr] * 100).toFixed(2) + '%</p></div>';
+      }
 
       popup.setLngLat(e.lngLat)
         .setHTML(popupContent)
         .addTo(map);
     });
 
-    map.on('mouseleave', 'residuals', function () {
+    map.on('mouseleave', layerName, function () {
       // Change cursor back to default ("grab") on mouseleave
       map.getCanvas().style.cursor = '';
       popup.remove();
