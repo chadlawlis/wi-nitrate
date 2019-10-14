@@ -42,21 +42,6 @@ import { Spinner } from './spin.js';
     regressionEquation,
     rSquared;
 
-  var canColors = ['#eff3ff', '#bdd7e7', '#6baed6', '#3182bd', '#08519c']; // blue
-  // var canColors = ['#f2f0f7', '#cbc9e2', '#9e9ac8', '#756bb1', '#54278f']; // purple
-
-  var nitColors = ['#fef0d9', '#fdcc8a', '#fc8d59', '#e34a33', '#b30000']; // red
-  // var nitColors = ['#edf8e9', '#bae4b3', '#74c476', '#31a354', '#006d2c']; // green
-
-  var resColors = ['#0571b0', '#92c5de', '#f7f7f7', '#f4a582', '#ca0020']; // red/white/blue
-  // var resColors = ['#2c7bb6', '#abd9e9', '#ffffbf', '#fdae61', '#d7191c']; // red/yellow/blue
-  // var resColors = ['#7b3294', '#c2a5cf', '#f7f7f7', '#a6dba0', '#008837']; // purple/white/green
-
-  // var resColors = ['#d73027', '#fc8d59', '#fee090', '#ffffbf', '#e0f3f8', '#91bfdb', '#4575b4'] // red/white/blue
-  // var resColors = ['#762a83', '#af8dc3', '#e7d4e8', '#f7f7f7', '#d9f0d3', '#7fbf7b', '#1b7837']; // purple/white/green
-
-  var sampleLegend = document.getElementById('sample-legend');
-
   // Declare sample data layers as objects of array
   var sampleLayers = [{
     label: 'Census Tracts',
@@ -71,7 +56,7 @@ import { Spinner } from './spin.js';
     unit: '%',
     unitAlias: 'Percent of population',
     breaks: [],
-    colors: canColors,
+    colors: ['#eff3ff', '#bdd7e7', '#6baed6', '#3182bd', '#08519c'], // color brewer sequential/5/blue/single-hue
     type: 'fill',
     legendDisplay: 'block'
   }, {
@@ -87,7 +72,7 @@ import { Spinner } from './spin.js';
     unit: 'ppm',
     unitAlias: 'Parts-per-million',
     breaks: [],
-    colors: nitColors,
+    colors: ['#fee5d9', '#fcae91', '#fb6a4a', '#de2d26', '#a50f15'], // color brewer sequential/5/red/single-hue
     type: 'circle',
     legendDisplay: 'block'
   }];
@@ -104,8 +89,8 @@ import { Spinner } from './spin.js';
     unit: '',
     unitAlias: 'Standard deviation',
     breaks: [],
-    breaksStanDev: [-2, -1, 1, 2],
-    colors: resColors,
+    breaksStanDev: [-1.5, -1, -0.5, 0.5, 1, 1.5],
+    colors: ['#b2182b', '#ef8a62', '#fddbc7', '#f7f7f7', '#d1e5f0', '#67a9cf', '#2166ac'], // color brewer diverging/7/red-blue/single-hue
     type: 'hex',
     legendDisplay: 'block'
   }, {
@@ -119,7 +104,7 @@ import { Spinner } from './spin.js';
     unit: 'ppm',
     unitAlias: 'Parts-per-million',
     breaks: [],
-    colors: nitColors,
+    colors: ['#fee5d9', '#fcbba1', '#fc9272', '#fb6a4a', '#ef3b2c', '#cb181d', '#99000d'], // color brewer sequential/7/red/single-hue
     type: 'hex',
     legendDisplay: 'none'
   }, {
@@ -133,7 +118,7 @@ import { Spinner } from './spin.js';
     unit: '%',
     unitAlias: 'Percent of population',
     breaks: [],
-    colors: canColors,
+    colors: ['#eff3ff', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'], // color brewer sequential/7/blue/single-hue
     type: 'hex',
     legendDisplay: 'none'
   }];
@@ -151,6 +136,8 @@ import { Spinner } from './spin.js';
     min: '6',
     max: '15'
   }];
+
+  var sampleLegend = document.getElementById('sample-legend');
 
   mapboxgl.accessToken = 'pk.eyJ1IjoiY2hhZGxhd2xpcyIsImEiOiJlaERjUmxzIn0.P6X84vnEfttg0TZ7RihW1g';
 
@@ -553,7 +540,7 @@ import { Spinner } from './spin.js';
       // Add sample layers
       sampleLayers.forEach(function (l) {
         addSource(l.sourceName, l.source);
-        l.breaks = calcBreaks(l.source, l.id, l.attr);
+        l.breaks = calcBreaks(l.source, l.id, l.attr, l.colors.length);
         mapSampleLayers(l.id, l.sourceName, l.type, l.attr, l.visibility, l.breaks, l.colors);
         addSampleLayerPopups(l.id, l.uid, l.uidAlias, l.attr, l.attrAlias, l.unit);
         createLegend(l.id, l.attrAlias, l.unit, l.unitAlias, l.type, l.colors, l.breaks, l.legendDisplay);
@@ -575,7 +562,7 @@ import { Spinner } from './spin.js';
     });
   }
 
-  function calcBreaks (input, layerName, attr) {
+  function calcBreaks (input, layerName, attr, length) {
     var values = [];
     // Build array of all values from input
     input.features.forEach(function (d) {
@@ -586,7 +573,7 @@ import { Spinner } from './spin.js';
     // Cluster data using ckmeans algorithm to create natural breaks
     // Use simple-statistics ckmeans() method to generate clusters
     // Returns a nested array, with each cluster an array instantiated with attribute values that comprise it
-    var clusters = ss.ckmeans(values, 5);
+    var clusters = ss.ckmeans(values, length);
 
     // Use native JS map() function to set each item of breaks array to minimum value of its cluster
     // No longer a nested array; results in minimum value of each cluster as each item of array
@@ -829,7 +816,7 @@ import { Spinner } from './spin.js';
       l.source = grid;
 
       if (l.id !== 'residuals') {
-        l.breaks = calcBreaks(l.source, l.id, l.attr);
+        l.breaks = calcBreaks(l.source, l.id, l.attr, l.colors.length);
       }
 
       mapRegressionLayers(l.id, l.sourceName, l.attr, l.visibility, l.breaks, l.colors);
@@ -949,20 +936,21 @@ import { Spinner } from './spin.js';
     console.log('rSquared:', rSquared);
 
     var stanDev = ss.sampleStandardDeviation(residuals);
+    console.log('stanDev:', stanDev);
 
     regressionLayers.forEach(function (l) {
       if (l.id === 'residuals') {
         // Calculate residuals breaks as multiples of standard deviation of residuals using breaksStanDev property of residuals layer object
         // Assuming breaksStanDev of [-2, -1, 1, 2]:
         // value < breaks[0] (< -2 stanDev)
-        // breaks[0] <= value <= breaks[1] (-2 stanDev <= value <= -1 standDev)
-        // breaks[1] <= value <= breaks[2] (-1 stanDev <= value <= 1 standDev)
-        // breaks[2] <= value <= breaks[3] (1 stanDev <= value <= 2 standDev)
-        // value > breaks[3] (value > 2 standDev)
+        // breaks[0] <= value <= breaks[1] (-2 stanDev <= value <= -1 stanDev)
+        // breaks[1] <= value <= breaks[2] (-1 stanDev <= value <= 1 stanDev)
+        // breaks[2] <= value <= breaks[3] (1 stanDev <= value <= 2 stanDev)
+        // value > breaks[3] (value > 2 stanDev)
         for (let i = 0; i < l.breaksStanDev.length; i++) {
           l.breaks[i] = parseFloat((l.breaksStanDev[i] * stanDev).toFixed(4));
         }
-        console.log(l.id + ' breaks:', l.breaks);
+        console.log(l.id + ' stanDev breaks:', l.breaks);
       }
     });
   }
@@ -993,7 +981,9 @@ import { Spinner } from './spin.js';
           breaks[0], colors[1],
           breaks[1], colors[2],
           breaks[2], colors[3],
-          breaks[3], colors[4]
+          breaks[3], colors[4],
+          breaks[4], colors[5],
+          breaks[5], colors[6]
         ],
         'fill-opacity': 1
       }
