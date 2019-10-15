@@ -340,7 +340,7 @@ import { Spinner } from './spin.js';
     '<p class="v-middle">Hover over the layers icon <img class="v-middle" src="assets/img/layers.png" alt="layers icon"> to switch between available layers.</p>' +
     '<p class="v-middle">Click the Wisconsin state icon <img class="v-middle" src="assets/img/wi.svg" alt="wisconsin icon"> to zoom to the original map extent.</p>' +
     '<h1>Analysis</h1>' +
-    '<p>The analysis uses <b>inverse distance weighting</b> (IDW) for interpolation and <b>ordinary least squares</b> (OLS) for linear regression.</p>' +
+    '<p>The analysis uses <b>inverse distance weighted</b> (IDW) for interpolation and <b>ordinary least squares</b> (OLS) for linear regression.</p>' +
     '<p>An interpolated surface (hexbin grid) is generated for both nitrate concentrations and cancer rates with IDW. Nitrate concentrations from randomized test wells and cancer rates from census tracts (both displayed on page landing) are used as sample inputs for the interpolation. The parameters for the analysis, distance decay coefficient and cell size, are input by the user.</p>' +
     '<p><b>Distance decay coefficient:</b> a parameter of IDW, which effectively quantifies the relation of close to distance things; i.e., how fast the weight, or influence, of a sample point value decreases as distance from the point increases.</p>' +
     '<p><b>Cell size:</b> the size of IDW\'s enumeration units. In this application, it is the distance across each enumeration unit (hexbin) in kilometers. The smaller the cell size the more granular the analysis.</p>' +
