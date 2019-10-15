@@ -127,8 +127,96 @@ input:valid+span:after {
   width: 18px;
 }
 
-.subtitle {
-  margin-top: 2px;
+/* Unopened lightbox */
+.lightbox {
+  display: none;
+}
+
+.lightbox figure {
+  margin: 0;
+}
+
+/* Opened lightbox */
+.lightbox:target {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Lightbox content */
+.lightbox figcaption {
+  background: #fff;
+  max-width: 800px;
+  overflow: auto;
+  position: relative;
+  padding: 15px;
+  z-index: 10; /* position above mapbox-ctrl elements */
+}
+
+.lightbox figcaption h1 {
+  font-size: 16px;
+  margin: 0 0 10px;
+}
+
+.lightbox figcaption p {
+  margin: 0 0 10px;
+}
+
+.lightbox figcaption p:last-child {
+  margin: 0;
+}
+
+.lightbox figcaption a {
+  color: #333;
+  text-decoration: none;
+  box-shadow: inset 0 -2px 0 #3b88fd;
+}
+.lightbox figcaption a:hover,
+.lightbox figcaption a:focus {
+  color: #3b88fd;
+  text-decoration: none;
+  box-shadow: inset 0 -2px 0 #3b88fd;
+}
+
+/* Close button */
+.lightbox .close {
+  position: relative;
+  display: block;
+}
+
+.lightbox .close::after {
+  right: 0;
+  top: 0;
+  width: 30px;
+  height: 30px;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e3e3e3;
+  color: #333;
+  content: "×";
+  cursor: pointer;
+  font-size: large;
+  z-index: 11; /* position above mapbox-ctrl elements + .lightbox figcaption */
+}
+
+/* Lightbox overlay */
+.lightbox .close::before {
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  background: rgba(51, 51, 51, 0.8);
+  content: "";
+  cursor: default;
+  z-index: 9; /* position above mapbox-ctrl elements, below .lightbox figcaption */
 }
 
 .mapboxgl-popup-content {
@@ -186,6 +274,10 @@ input:valid+span:after {
 
 .small {
   font-size: 12px;
+}
+
+.subtitle {
+  margin-top: 2px;
 }
 
 .title h1 {
