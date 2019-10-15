@@ -22,6 +22,11 @@ body {
   margin: 0 10px 40px 0;
 }
 
+.calc-output,
+.form-input-buttons {
+  margin-top: 10px;
+}
+
 .form-input,
 .form-label {
   margin-bottom: 6px;
@@ -47,10 +52,6 @@ body {
 
 .form-menu a {
   color: #333;
-}
-
-.form-input-buttons {
-  margin-top: 10px;
 }
 
 input[type="checkbox"],

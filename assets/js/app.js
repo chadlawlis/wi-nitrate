@@ -40,7 +40,8 @@ import { Spinner } from './spin.js';
     distDecay, // 2-100
     cellSize, // 6-15; cellSize must be >= 6 for each grid hexbin to intersect a canPointGrid point
     regressionEquation,
-    rSquared;
+    rSquared,
+    calcOutput;
 
   // Declare sample data layers as objects of array
   var sampleLayers = [{
@@ -395,6 +396,10 @@ import { Spinner } from './spin.js';
 
     form.appendChild(formInputs);
 
+    calcOutput = document.createElement('div');
+    calcOutput.className = 'calc-output small';
+    formInputs.appendChild(calcOutput);
+
     var formInputButtonsDiv = document.createElement('div');
     formInputButtonsDiv.className = 'form-input-buttons';
 
@@ -403,7 +408,7 @@ import { Spinner } from './spin.js';
     submitButton.className = 'input-button';
     submitButton.type = 'button';
     submitButton.disabled = true;
-    submitButton.textContent = 'Submit';
+    submitButton.textContent = 'Calculate';
 
     submitButton.addEventListener('click', function () {
       sampleLayers.forEach(function (l) {
@@ -470,6 +475,8 @@ import { Spinner } from './spin.js';
         var legend = document.getElementById(l.id + '-legend');
         legend.style.display = 'none';
       });
+
+      calcOutput.innerHTML = '';
 
       map.removeSource('grid');
 
@@ -934,6 +941,7 @@ import { Spinner } from './spin.js';
 
     rSquared = parseFloat((ss.rSquared(regressionCoords, regressionLine)).toFixed(4));
     console.log('rSquared:', rSquared);
+    calcOutput.innerHTML = 'R<sup>2</sup> = ' + rSquared;
 
     var stanDev = ss.sampleStandardDeviation(residuals);
     console.log('stanDev:', stanDev);
