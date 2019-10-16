@@ -134,7 +134,7 @@ input:valid+span:after {
 
 .lightbox figure {
   margin: 0;
-  max-height: 90%;
+  max-height: 100%;
   overflow: auto;
 }
 
