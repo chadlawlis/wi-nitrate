@@ -134,6 +134,8 @@ input:valid+span:after {
 
 .lightbox figure {
   margin: 0;
+  max-height: 90%;
+  overflow: auto;
 }
 
 /* Opened lightbox */
@@ -151,8 +153,7 @@ input:valid+span:after {
 /* Lightbox content */
 .lightbox figcaption {
   background: #fff;
-  max-width: 800px;
-  overflow: auto;
+  max-width: 750px;
   position: relative;
   padding: 15px;
   z-index: 10; /* position above mapbox-ctrl elements */
