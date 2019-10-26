@@ -394,7 +394,7 @@ import { Spinner } from './spin.js';
       input.required = 'true';
 
       if (i.id === 'dist-decay') {
-        input.addEventListener('change', function () {
+        input.addEventListener('input', function () {
           var cellSizeInput = document.getElementById('cell-size');
           if (input.validity.valid && cellSizeInput.validity.valid) {
             if (parseFloat(input.value) !== distDecay) {
@@ -407,7 +407,7 @@ import { Spinner } from './spin.js';
           }
         });
       } else if (i.id === 'cell-size') {
-        input.addEventListener('change', function () {
+        input.addEventListener('input', function () {
           var distDecayInput = document.getElementById('dist-decay');
           if (input.validity.valid && distDecayInput.validity.valid) {
             if (parseFloat(input.value) !== cellSize) {
@@ -443,7 +443,7 @@ import { Spinner } from './spin.js';
     var submitButton = document.createElement('button');
     submitButton.id = 'submit-button';
     submitButton.className = 'input-button';
-    submitButton.type = 'button';
+    submitButton.type = 'submit';
     submitButton.disabled = true;
     submitButton.textContent = 'Calculate';
 
