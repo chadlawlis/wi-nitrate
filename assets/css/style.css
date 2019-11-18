@@ -54,12 +54,12 @@ body {
   color: #333;
 }
 
-input[type="checkbox"],
-input[type="radio"] {
+input[type='checkbox'],
+input[type='radio'] {
   vertical-align: middle;
 }
 
-input[type="number"] {
+input[type='number'] {
   color: #333;
   font: 14px -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, Helvetica, sans-serif;
   width: 52px; /* unify input width; varies by default given two-digit max (15) for cellSize, three-digit max (100) for distDecay */
@@ -201,7 +201,7 @@ input:valid+span:after {
   justify-content: center;
   background: #e3e3e3;
   color: #333;
-  content: "×";
+  content: '×';
   cursor: pointer;
   font-size: large;
   z-index: 11; /* position above mapbox-ctrl elements + .lightbox figcaption */
@@ -215,7 +215,7 @@ input:valid+span:after {
   height: 100%;
   position: fixed;
   background: rgba(51, 51, 51, 0.8);
-  content: "";
+  content: '';
   cursor: default;
   z-index: 9; /* position above mapbox-ctrl elements, below .lightbox figcaption */
 }
