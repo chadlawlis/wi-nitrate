@@ -326,7 +326,7 @@ import { Spinner } from './spin.js';
     infoLightBox.className = 'lightbox';
     var infoLightBoxFigure = document.createElement('figure');
     var infoLightBoxFigureAnchor = document.createElement('a');
-    infoLightBoxFigureAnchor.setAttribute('href', '#');
+    infoLightBoxFigureAnchor.href = '#';
     infoLightBoxFigureAnchor.className = 'close';
     var infoLightBoxFigureCaption = document.createElement('figcaption');
     infoLightBoxFigureCaption.innerHTML = '<h1>About</h1>' +
